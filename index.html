@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tracking Dinámico (G.A.B.I. System)</title>
+    <style>
+        /* Estilos básicos para la interfaz */
+        #map {
+            height: 600px; /* Tamaño fijo para la visualización del mapa */
+            width: 100%;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        /* CLASE CRÍTICA PARA EL EFECTO DE PARPADEO */
+        /* Esta animación CSS hace que el punto parpadee sin consumir más API calls */
+        .pulsating-marker {
+            /* Alterna la opacidad del 100% al 20% */
+            animation: pulse-animation 1s infinite alternate; 
+        }
+
+        @keyframes pulse-animation {
+            from { opacity: 1.0; }
+            to { opacity: 0.2; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Sistema de Tracking de Materiales - V1.0</h1>
+    <p>Ingrese el ID del material para visualizar su ubicación más reciente.</p>
+
+    <input type="text" id="search-input" placeholder="Buscar ID de Material (Ej: ITEM-789)" onkeyup="filterMaterial()">
+    <p id="status-message" style="color: grey;">Estado: Inicializando sistema...</p>
+    
+    <div id="map"></div>
+
+    <script>
+        // *** 1. CONFIGURACIÓN CRÍTICA ***
+        // ¡REEMPLAZAR ESTAS DOS VARIABLES!
+        const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
+        const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbyn3bnNi8PGidmPDyNBrA6osFTTeWmM55aKtP6nj68_hFb-aODgzxHUn-oYEWhHQas4/exec'; 
+        
+        // Variables globales del estado del sistema
+        let map;
+        let allMaterials = [];
+        let activeMarker = null; // Marcador actualmente visible
+        let activeMarkerId = null; // ID del material activo
+        
+        // Carga la API de Google Maps de forma asíncrona
+        function loadGoogleMapsScript() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
+            script.async = true;
+            document.head.appendChild(script);
+        }
+
+        // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
+        window.initMap = function() {
+            // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
+            const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 12,
+                center: defaultLocation,
+                mapId: 'DEMO_MAP_ID' // Puede ser sustituido por un ID de mapa personalizado
+            });
+            
+            // Inicia la actualización periódica
+            startDataRefresh();
+            document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
+        }
+
+        // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT
+        async function fetchMaterialData() {
+            try {
+                const response = await fetch(ENDPOINT_URL);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    allMaterials = data.data; // Almacena todos los datos del Excel
+                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
+                    
+                    // Si ya hay un material activo, actualiza solo ese marcador
+                    if (activeMarkerId) {
+                        updateActiveMarker(activeMarkerId);
+                    }
+                } else {
+                    console.error("Error del Endpoint:", data.message);
+                    document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
+                }
+            } catch (error) {
+                console.error('Error de conexión con Apps Script:', error);
+                document.getElementById('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
+            }
+        }
+
+        // 4. LÓGICA DE BÚSQUEDA Y FILTRADO
+        window.filterMaterial = function() {
+            const searchId = document.getElementById('search-input').value.trim().toUpperCase();
+            
+            // Si el campo de búsqueda está vacío, borra el marcador activo
+            if (!searchId) {
+                clearActiveMarker();
+                return;
+            }
+
+            // Actualiza la visualización con el ID buscado
+            updateActiveMarker(searchId);
+        }
+
+        // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR
+        function updateActiveMarker(searchId) {
+            const material = allMaterials.find(item => item.ID_MATERIAL.toUpperCase() === searchId);
+
+            clearActiveMarker(); // Elimina el marcador anterior
+
+            if (material && material.LATITUD && material.LONGITUD) {
+                activeMarkerId = searchId; // Establece el ID activo
+                
+                const position = { 
+                    lat: parseFloat(material.LATITUD), 
+                    lng: parseFloat(material.LONGITUD) 
+                };
+
+                // Crea el nuevo marcador
+                activeMarker = new google.maps.Marker({
+                    position: position,
+                    map: map,
+                    title: material.ID_MATERIAL,
+                    // Aplica la clase CSS para el efecto de parpadeo
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#FF0000',
+                        fillOpacity: 0.9,
+                        strokeWeight: 0,
+                        // Clave: inyecta la clase CSS para el parpadeo en la etiqueta SVG del marcador
+                        className: 'pulsating-marker' 
+                    }
+                });
+
+                // Centra el mapa en la nueva posición y establece un zoom adecuado
+                map.setCenter(position);
+                map.setZoom(15); 
+                
+                // Añade la información en un infowindow
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `<h3>${material.ID_MATERIAL}</h3><p>Estado: ${material.ESTADO || 'N/A'}</p><p>Coordenadas: ${position.lat}, ${position.lng}</p>`
+                });
+
+                activeMarker.addListener('click', () => {
+                    infoWindow.open(map, activeMarker);
+                });
+
+                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado.`;
+
+            } else {
+                document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
+            }
+        }
+
+        // 6. FUNCIÓN DE LIMPIEZA
+        function clearActiveMarker() {
+            if (activeMarker) {
+                activeMarker.setMap(null);
+                activeMarker = null;
+                activeMarkerId = null;
+            }
+        }
+        
+        // 7. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
+        function startDataRefresh() {
+            // Hace la petición inicial
+            fetchMaterialData(); 
+            // Repite la petición cada 5000 milisegundos (5 segundos)
+            setInterval(fetchMaterialData, 5000); 
+        }
+
+        // Inicia el proceso de carga del script de Google Maps
+        loadGoogleMapsScript();
+    </script>
+</body>
+</html>
