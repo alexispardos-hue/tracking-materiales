@@ -127,7 +127,7 @@
         // *** 1. CONFIGURACIÓN CRÍTICA ***
         // ¡REEMPLAZAR ESTAS DOS VARIABLES!
         const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
-        const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbwLsETbP2RB9Wj_BPut-Edk8bT4YSAckEjSb5x-l9atLPqIjDlDbzm_2sqIzLnIsOYA/exec'; 
+        const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbz8x6rWxyxrohNzMrqw6a6uMEprAS4ZuFOqPiuJM28ungRPWQ2xgXG3RBGT2YHtdGEO/exec'; 
 
         // Variables globales del estado del sistema
         let map;
@@ -294,8 +294,136 @@
                 isVisible = !isVisible; 
             }, interval / 2); 
         }
+        // 7. CÁLCULO DE DIFERENCIA DE DÍAS (CRÍTICO)
+    function calculateDaysDifference(startDateStr, endDateStr) {
+    const oneDay = 24 * 60 * 60 * 1000;
+    
+    // Usar la fecha de hoy si la fecha de fin no está definida (solo para el último punto histórico)
+    const endDate = endDateStr ? new Date(endDateStr) : new Date(new Date().toISOString().split('T')[0]);
+    const startDate = new Date(startDateStr);
+    
+    // Manejo de offset de zona horaria: ajusta la fecha para que la diferencia sea correcta
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    // Si la fecha de inicio es posterior a la fecha de fin (error lógico), regresa 0
+    if (startDate.getTime() > endDate.getTime()) {
+        return 0;
+    }
+
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    
+    // Se redondea al entero más cercano para evitar imprecisiones por husos horarios
+    return Math.round(diffTime / oneDay); 
+}
 
 
+// 6. LÓGICA DE TRACKING HISTÓRICO
+function plotHistoricalTracking(historyData, materialId) {
+    clearHistoryTracking(); 
+
+    const pathCoordinates = [];
+    const bounds = new google.maps.LatLngBounds();
+    const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+    
+    // La fecha del último punto (posición actual) es la fecha de hoy
+    const lastUpdateDateStr = material.FECHA_ACTUALIZACION;
+
+    historyData.forEach((point, index) => {
+        const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
+        
+        pathCoordinates.push(position);
+        bounds.extend(position);
+
+        let durationDays = 0;
+        let departureStr = point.departure; 
+        
+        // Si no hay departure, es el punto actual (el último en el array)
+        if (!departureStr) {
+            departureStr = lastUpdateDateStr; // La fecha de fin del último segmento es HOY
+        }
+        
+        // Calcular duración
+        if (point.arrival && departureStr) {
+            durationDays = calculateDaysDifference(point.arrival, departureStr);
+        }
+        
+        const infoContent = `
+            <div style="font-size: 0.9em;">
+                <strong>Punto Histórico ${index + 1}</strong><br>
+                Arribo: ${point.arrival || 'N/A'}<br>
+                Salida: ${point.departure || 'AÚN EN ESTE PUNTO'}<br>
+                <span style="font-weight: bold; color: ${durationDays > 0 ? 'blue' : 'black'};">Duración: ${durationDays} días</span>
+            </div>
+        `;
+
+        // Si es el ÚLTIMO PUNTO (posición actual), no creamos marcador duplicado, ya lo hace el mapa superior.
+        if (index === historyData.length - 1) {
+            // Se puede marcar el último punto en el mapa histórico con un icono distinto si se desea
+            // Por ahora, solo se usa para la polilínea.
+            return; 
+        }
+
+        // Marcador Histórico (Azul)
+        const marker = new google.maps.Marker({
+            position: position,
+            map: historyMap,
+            title: `Histórico Punto ${index + 1}: ${point.arrival}`,
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 6,
+                fillColor: '#0000FF',
+                fillOpacity: 0.8,
+                strokeWeight: 1,
+                strokeColor: '#0000CC'
+            }
+        });
+        
+        historyMarkers.push(marker);
+
+        const infoWindow = new google.maps.InfoWindow({ content: infoContent });
+        marker.addListener('click', () => { infoWindow.open(historyMap, marker); });
+    });
+
+    // Dibuja la polilínea
+    polyline = new google.maps.Polyline({
+        path: pathCoordinates,
+        geodesic: true,
+        strokeColor: '#0000FF',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        map: historyMap
+    });
+    // 8. LÓGICA DEL CONTADOR DE DÍAS (SUPERPUESTO)
+function updateDayCounter(lastUpdateStr, position) {
+    // Calculamos días que lleva en la posición actual: FECHA_ACTUALIZACION (en hoja) vs HOY
+    const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === activeMarkerId.toUpperCase());
+    
+    // CRÍTICO: El último punto del historial es la posición actual.
+    // La fecha de arribo de ese punto es la fecha de la hoja (que es la última vez que se movió)
+    const arrivalDate = material.HISTORY.length > 0 ? material.HISTORY[material.HISTORY.length - 1].arrival : null;
+
+    if (!arrivalDate) {
+        document.getElementById('day-counter-overlay').style.display = 'none';
+        return;
+    }
+    
+    // Calculamos la diferencia entre la fecha de arribo (HOJA) y HOY (Apps Script)
+    const daysElapsed = calculateDaysDifference(arrivalDate, new Date().toISOString().split('T')[0]);
+    const counterDiv = document.getElementById('day-counter-overlay');
+    
+    if (daysElapsed === 'N/A' || daysElapsed < 0) {
+        counterDiv.style.display = 'none';
+        return;
+    }
+
+    counterDiv.innerText = `${daysElapsed} días`;
+    counterDiv.style.display = 'block';
+}
+    // Ajusta el zoom del mapa histórico
+    historyMap.fitBounds(bounds);
+}
+        
         // 7. FUNCIÓN DE LIMPIEZA
         function clearActiveMarker() {
             if (activeMarker) {
