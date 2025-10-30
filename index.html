@@ -1,31 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Tracking Dinámico (G.A.B.I. System)</title>
     <style>
-        /* Estilos básicos para la interfaz */
-        #map {
-            height: 600px; /* Tamaño fijo para la visualización del mapa */
-            width: 100%;
-        }
+        /* Estilos base */
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
-        /* Las clases CSS de parpadeo ya no son necesarias aquí, 
-           pues se maneja por JavaScript (startBlinking) */
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        /* Estilos para la Mejora 2: Panel lateral y Contenedor Principal */
+        .main-container {
+            display: flex;
+            flex-grow: 1;
+        }
+        .controls-panel {
+            width: 350px; /* Ancho fijo para el panel lateral */
+            padding: 15px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        #map {
+            flex-grow: 1;
+            height: 90vh; /* Altura ajustada para ocupar el resto de la vista */
+        }
+        .search-container input[type="text"], 
+        .search-container select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        /* Estilos para el Contenedor de Ficha de Datos */
+        #material-details {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            font-size: 0.9em;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        #material-details h4 {
+            margin-top: 0;
+            color: #1a73e8;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+        .detail-row {
+            margin-bottom: 5px;
+        }
+        .detail-row strong {
+            display: inline-block;
+            width: 120px; /* Alineación de etiquetas */
+            color: #555;
+        }
+        #results-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #results-list li {
+            padding: 4px 0;
+            border-bottom: 1px dotted #eee;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Sistema de Tracking de Materiales - V1.0</h1>
-    <p>Ingrese el ID del material para visualizar su ubicación más reciente.</p>
+    <header>
+        <h1>Sistema de Tracking de Materiales <small>(G.A.B.I. System)</small></h1>
+    </header>
 
-    <input type="text" id="search-input" placeholder="Buscar ID de Material (Ej: M1)" onkeydown="filterMaterial(event)"> 
-    <p id="status-message" style="color: grey;">Estado: Inicializando sistema...</p>
+    <div class="main-container">
+        
+        <div class="controls-panel">
+            
+            <div class="search-container">
+                <label for="search-selector" style="font-weight: bold;">1. Seleccionar Campo de Búsqueda:</label>
+                <select id="search-selector">
+                    <option value="ID_MATERIAL">ID de Material (M1, MAT_1)</option>
+                    <option value="DESCRIPCION">Descripción</option>
+                    <option value="OC">Orden de Compra (OC)</option>
+                    <option value="GUIA">Número de Guía</option>
+                    <option value="PLANO_REF">Plano de Referencia</option>
+                </select>
+                
+                <label for="search-input" style="font-weight: bold;">2. Escribir Término (Diccionario):</label>
+                <input type="text" id="search-input" placeholder="Buscar..." oninput="filterDictionary(this.value)">
+                
+                <div id="dictionary-results" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; margin-top: 10px; display: none;">
+                    <ul id="results-list"></ul>
+                </div>
+            </div>
+            
+            <hr style="width: 100%; border-top: 1px solid #eee;">
+            
+            <div id="status-message" style="margin-bottom: 15px;">Estado: Inicializando sistema...</div>
+            
+            <div id="material-details" style="display: none;">
+                <h4>Ficha de Datos del Material Activo</h4>
+                </div>
+
+        </div>
+
+        <div id="map"></div>
+    </div>
     
-    <div id="map"></div>
-
     <script>
         // *** 1. CONFIGURACIÓN CRÍTICA ***
         // ¡REEMPLAZAR ESTAS DOS VARIABLES!
@@ -88,20 +185,19 @@
             }
         }
 
-        // 4. LÓGICA DE BÚSQUEDA Y FILTRADO
+        // 4. LÓGICA DE BÚSQUEDA POR ID (Usando la tecla ENTER)
+        // Mantenida solo por compatibilidad, la búsqueda principal es ahora el diccionario.
         window.filterMaterial = function(event) {
             // Se activa solo al presionar ENTER
             if (event.key !== 'Enter') return; 
 
             const searchId = document.getElementById('search-input').value.trim().toUpperCase();
             
-            // Si el campo de búsqueda está vacío, borra el marcador activo
             if (!searchId) {
                 clearActiveMarker();
                 return;
             }
 
-            // Actualiza la visualización con el ID buscado
             updateActiveMarker(searchId);
         }
 
@@ -112,6 +208,7 @@
 
             // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
             clearActiveMarker(); 
+            document.getElementById('material-details').style.display = 'none'; // Oculta ficha anterior
 
             if (material && material.LATITUD && material.LONGITUD) {
                 activeMarkerId = searchId; // Establece el ID activo
@@ -123,7 +220,6 @@
 
                 // -------------------------------------------------------------
                 // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
-                // USANDO CLAVES LIMPIAS: material.OC, material.GUIA, etc.
                 // -------------------------------------------------------------
                 const contentString = `
                     <div style="font-family: Arial, sans-serif; max-width: 300px;">
@@ -156,7 +252,7 @@
                     }
                 });
 
-                // *** INICIA EL EFECTO DE PARPADEO cada 3000ms (3 segundos) ***
+                // *** INICIA EL EFECTO DE PARPADEO (3 segundos) ***
                 startBlinking(activeMarker, 3000); 
                 
                 // Centra el mapa en la nueva posición y establece un zoom adecuado
@@ -172,6 +268,9 @@
                     infoWindow.open(map, activeMarker);
                 });
 
+                // CRÍTICO: Llamada para mostrar la ficha de datos
+                displayMaterialDetails(searchId); 
+
                 document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado y en seguimiento activo.`;
 
             } else {
@@ -182,7 +281,6 @@
 
         // 6. FUNCIÓN PARA INICIAR EL PARPADEO (3 segundos por ciclo)
         function startBlinking(marker, interval) {
-            // Limpiamos cualquier intervalo anterior
             if (blinkInterval) {
                 clearInterval(blinkInterval);
             }
@@ -191,37 +289,135 @@
             
             blinkInterval = setInterval(() => {
                 const icon = marker.getIcon();
-                
-                // Alterna la visibilidad (opacidad)
                 icon.fillOpacity = isVisible ? 0.2 : 0.9; 
                 marker.setIcon(icon);
-                
-                isVisible = !isVisible; // Invierte el estado
-                
-            }, interval / 2); // Ejecuta la alternancia a la mitad del ciclo (1.5 segundos)
+                isVisible = !isVisible; 
+            }, interval / 2); 
         }
 
 
-        // 7. FUNCIÓN DE LIMPIEZA (CORREGIDA)
+        // 7. FUNCIÓN DE LIMPIEZA
         function clearActiveMarker() {
             if (activeMarker) {
                 activeMarker.setMap(null);
                 activeMarker = null;
                 activeMarkerId = null;
             }
-            // CRÍTICO: Limpiar el intervalo de parpadeo al borrar el marcador
             if (blinkInterval) {
                 clearInterval(blinkInterval);
                 blinkInterval = null;
             }
+            document.getElementById('material-details').style.display = 'none'; // Oculta la ficha
         }
         
         // 8. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
         function startDataRefresh() {
-            // Hace la petición inicial
             fetchMaterialData(); 
-            // Repite la petición cada 5000 milisegundos (5 segundos)
             setInterval(fetchMaterialData, 5000); 
+        }
+        
+        // ==========================================================
+        // ** FUNCIONES PARA BÚSQUEDA POR DICCIONARIO (MEJORA 2) **
+        // ==========================================================
+
+        /**
+         * Filtra los materiales basándose en el campo seleccionado y el término de búsqueda.
+         * Se dispara con oninput.
+         */
+        function filterDictionary(searchTerm) {
+            const selector = document.getElementById('search-selector');
+            const searchField = selector.value;
+            const resultsContainer = document.getElementById('dictionary-results');
+            const resultsList = document.getElementById('results-list');
+            
+            if (searchTerm.length < 2) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+
+            const lowerCaseSearch = searchTerm.toLowerCase();
+
+            const filtered = allMaterials.filter(material => {
+                // Aseguramos que el material y el campo existan antes de llamar a toString()
+                const value = (material && material[searchField] || '').toString().toLowerCase();
+                return value.includes(lowerCaseSearch);
+            });
+
+            resultsList.innerHTML = '';
+
+            if (filtered.length > 0) {
+                resultsContainer.style.display = 'block';
+                
+                // Limita los resultados a los primeros 10
+                filtered.slice(0, 10).forEach(material => {
+                    const li = document.createElement('li');
+                    const materialId = material.ID_MATERIAL;
+                    // Muestra el valor del campo buscado (ej: el nombre del plano o la descripción)
+                    const displayValue = material[searchField] || 'N/A'; 
+                    
+                    li.innerHTML = `
+                        <a href="#" onclick="selectMaterialFromList('${materialId}'); return false;" style="color: #007bff; text-decoration: none;">
+                            <strong>ID ${materialId}</strong>
+                        </a>: ${displayValue}
+                    `;
+                    resultsList.appendChild(li);
+                });
+            } else {
+                resultsContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Función auxiliar para seleccionar el material desde la lista de diccionario.
+         */
+        window.selectMaterialFromList = function(materialId) {
+            const searchInput = document.getElementById('search-input');
+            
+            document.getElementById('dictionary-results').style.display = 'none';
+            searchInput.value = ''; // Limpiamos la caja de búsqueda (opcional)
+
+            // 1. Mueve el marcador
+            updateActiveMarker(materialId);
+            
+            // 2. Muestra la ficha de datos completa (esto también se llama dentro de updateActiveMarker)
+            // displayMaterialDetails(materialId); // La llamada está en updateActiveMarker ahora.
+        }
+
+        /**
+         * Muestra la ficha de datos completa en el panel lateral.
+         */
+        function displayMaterialDetails(materialId) {
+            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+            const detailsDiv = document.getElementById('material-details');
+            
+            if (!material) {
+                detailsDiv.style.display = 'none';
+                return;
+            }
+            
+            detailsDiv.style.display = 'block';
+            
+            let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
+            
+            // Iteramos sobre las claves para mostrarlas ordenadamente
+            const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD'];
+            
+            keysOrder.forEach(key => {
+                let value = material[key] || 'N/A';
+                
+                // Excluimos las claves si son nulas o no están en el objeto
+                if (value === 'N/A' && !material.hasOwnProperty(key)) return;
+                
+                const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
+
+                htmlContent += `
+                    <div class="detail-row">
+                        <strong>${displayKey}:</strong> ${value}
+                    </div>
+                `;
+            });
+            
+            detailsDiv.innerHTML = htmlContent;
         }
 
         // Inicia el proceso de carga del script de Google Maps
