@@ -12,17 +12,8 @@
             font-family: Arial, sans-serif;
             margin: 20px;
         }
-        /* CLASE CRÍTICA PARA EL EFECTO DE PARPADEO */
-        /* Esta animación CSS hace que el punto parpadee sin consumir más API calls */
-        .pulsating-marker {
-            /* Alterna la opacidad del 100% al 20% */
-            animation: pulse-animation 1s infinite alternate; 
-        }
-
-        @keyframes pulse-animation {
-            from { opacity: 1.0; }
-            to { opacity: 0.2; }
-        }
+        /* Las clases CSS de parpadeo ya no son necesarias aquí, 
+           pues se maneja por JavaScript (startBlinking) */
     </style>
 </head>
 <body>
@@ -30,7 +21,7 @@
     <h1>Sistema de Tracking de Materiales - V1.0</h1>
     <p>Ingrese el ID del material para visualizar su ubicación más reciente.</p>
 
-    <input type="text" id="search-input" placeholder="Buscar ID de Material (Ej: ITEM-789)" onkeyup="filterMaterial()">
+    <input type="text" id="search-input" placeholder="Buscar ID de Material (Ej: M1)" onkeydown="filterMaterial(event)"> 
     <p id="status-message" style="color: grey;">Estado: Inicializando sistema...</p>
     
     <div id="map"></div>
@@ -40,12 +31,13 @@
         // ¡REEMPLAZAR ESTAS DOS VARIABLES!
         const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
         const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbwLsETbP2RB9Wj_BPut-Edk8bT4YSAckEjSb5x-l9atLPqIjDlDbzm_2sqIzLnIsOYA/exec'; 
-        
+
         // Variables globales del estado del sistema
         let map;
         let allMaterials = [];
         let activeMarker = null; // Marcador actualmente visible
         let activeMarkerId = null; // ID del material activo
+        let blinkInterval = null; // CRÍTICO: Variable para controlar el intervalo de parpadeo (3s)
         
         // Carga la API de Google Maps de forma asíncrona
         function loadGoogleMapsScript() {
@@ -71,14 +63,15 @@
             document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
         }
 
-        // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT
+        // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
         async function fetchMaterialData() {
             try {
                 const response = await fetch(ENDPOINT_URL);
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    allMaterials = data.data; // Almacena todos los datos del Excel
+                    // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
+                    allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
                     document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
                     
                     // Si ya hay un material activo, actualiza solo ese marcador
@@ -96,7 +89,10 @@
         }
 
         // 4. LÓGICA DE BÚSQUEDA Y FILTRADO
-        window.filterMaterial = function() {
+        window.filterMaterial = function(event) {
+            // Se activa solo al presionar ENTER
+            if (event.key !== 'Enter') return; 
+
             const searchId = document.getElementById('search-input').value.trim().toUpperCase();
             
             // Si el campo de búsqueda está vacío, borra el marcador activo
@@ -109,11 +105,13 @@
             updateActiveMarker(searchId);
         }
 
-        // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR
+        // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR (CORREGIDA)
         function updateActiveMarker(searchId) {
-            const material = allMaterials.find(item => item.ID_MATERIAL.toUpperCase() === searchId);
+            // Busca el material usando las claves limpias del Apps Script
+            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
 
-            clearActiveMarker(); // Elimina el marcador anterior
+            // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
+            clearActiveMarker(); 
 
             if (material && material.LATITUD && material.LONGITUD) {
                 activeMarkerId = searchId; // Establece el ID activo
@@ -123,53 +121,102 @@
                     lng: parseFloat(material.LONGITUD) 
                 };
 
-                // Crea el nuevo marcador
+                // -------------------------------------------------------------
+                // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
+                // USANDO CLAVES LIMPIAS: material.OC, material.GUIA, etc.
+                // -------------------------------------------------------------
+                const contentString = `
+                    <div style="font-family: Arial, sans-serif; max-width: 300px;">
+                        <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+                        <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+                        <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>
+                        
+                        <hr style="border-top: 1px solid #eee; margin: 8px 0;">
+                        
+                        <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+                        <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
+                        <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
+                        <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
+                        
+                        <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+                    </div>`;
+
+
+                // Crea el nuevo marcador 
                 activeMarker = new google.maps.Marker({
                     position: position,
                     map: map,
                     title: material.ID_MATERIAL,
-                    // Aplica la clase CSS para el efecto de parpadeo
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 10,
                         fillColor: '#FF0000',
                         fillOpacity: 0.9,
                         strokeWeight: 0,
-                        // Clave: inyecta la clase CSS para el parpadeo en la etiqueta SVG del marcador
-                        className: 'pulsating-marker' 
                     }
                 });
 
+                // *** INICIA EL EFECTO DE PARPADEO cada 3000ms (3 segundos) ***
+                startBlinking(activeMarker, 3000); 
+                
                 // Centra el mapa en la nueva posición y establece un zoom adecuado
                 map.setCenter(position);
                 map.setZoom(15); 
                 
                 // Añade la información en un infowindow
                 const infoWindow = new google.maps.InfoWindow({
-                    content: `<h3>${material.ID_MATERIAL}</h3><p>Estado: ${material.ESTADO || 'N/A'}</p><p>Coordenadas: ${position.lat}, ${position.lng}</p>`
+                    content: contentString
                 });
 
                 activeMarker.addListener('click', () => {
                     infoWindow.open(map, activeMarker);
                 });
 
-                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado.`;
+                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado y en seguimiento activo.`;
 
             } else {
                 document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
             }
         }
 
-        // 6. FUNCIÓN DE LIMPIEZA
+
+        // 6. FUNCIÓN PARA INICIAR EL PARPADEO (3 segundos por ciclo)
+        function startBlinking(marker, interval) {
+            // Limpiamos cualquier intervalo anterior
+            if (blinkInterval) {
+                clearInterval(blinkInterval);
+            }
+            
+            let isVisible = true;
+            
+            blinkInterval = setInterval(() => {
+                const icon = marker.getIcon();
+                
+                // Alterna la visibilidad (opacidad)
+                icon.fillOpacity = isVisible ? 0.2 : 0.9; 
+                marker.setIcon(icon);
+                
+                isVisible = !isVisible; // Invierte el estado
+                
+            }, interval / 2); // Ejecuta la alternancia a la mitad del ciclo (1.5 segundos)
+        }
+
+
+        // 7. FUNCIÓN DE LIMPIEZA (CORREGIDA)
         function clearActiveMarker() {
             if (activeMarker) {
                 activeMarker.setMap(null);
                 activeMarker = null;
                 activeMarkerId = null;
             }
+            // CRÍTICO: Limpiar el intervalo de parpadeo al borrar el marcador
+            if (blinkInterval) {
+                clearInterval(blinkInterval);
+                blinkInterval = null;
+            }
         }
         
-        // 7. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
+        // 8. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
         function startDataRefresh() {
             // Hace la petición inicial
             fetchMaterialData(); 
