@@ -154,38 +154,38 @@
     /**
      * Obtiene los datos del Google Sheet a través del Apps Script Endpoint.
      */
-    function fetchMaterialData() {
-        fetch(ENDPOINT_URL)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Fallo en la conexión de red');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    allMaterials = data.data; 
-                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-                    
-                    if (map && allMaterials.length > 0) {
-                         // Mostrar el primer elemento al cargar
-                         if (!activeMarkerId) {
-                            const initialId = allMaterials[0].ID_MATERIAL; 
-                            updateActiveMarker(initialId);
-                            document.getElementById('material-id-input').value = initialId; 
-                            activeMarkerId = initialId;
-                        }
-                    }
+function fetchMaterialData() {
+    fetch(ENDPOINT_URL)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Fallo en la conexión de red');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
+                allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
+                document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
 
-                } else {
-                    document.getElementById('status-message').innerText = `ERROR: No se pudieron obtener los datos. ${data.message}`;
+                if (map && allMaterials.length > 0) {
+                     if (!activeMarkerId) {
+                        const initialId = allMaterials[0].ID_MATERIAL; 
+                        updateActiveMarker(initialId);
+                        document.getElementById('material-id-input').value = initialId; 
+                        activeMarkerId = initialId;
+                    }
                 }
-            })
-            .catch(error => {
-                document.getElementById('status-message').innerText = `ERROR: Fallo en la conexión de red. ${error.message}`;
-                console.error("Error al obtener datos:", error);
-            });
-    }
+
+            } else {
+                document.getElementById('status-message').innerText = `ERROR: No se pudieron obtener los datos. ${data.message}`;
+            }
+        })
+        .catch(error => {
+            document.getElementById('status-message').innerText = `ERROR: Fallo en la conexión de red. ${error.message}`;
+            console.error("Error al obtener datos:", error);
+        });
+}
 
     /**
      * Función principal que se dispara al buscar un ID de material (al presionar Enter).
