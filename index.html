@@ -1,168 +1,168 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Tracking Dinámico (G.A.B.I. System)</title>
-    <style>
-        /* Estilos base */
-        body {
-            font-family: Arial, sans-serif; 
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        header {
-            background-color: #333;
-            color: white;
-            padding: 10px 20px;
-            text-align: center;
-        }
-        /* Estilos para la Mejora 2: Panel lateral y Contenedor Principal */
-        .main-container {
-            display: flex;
-            flex-grow: 1;
-        }
-        .controls-panel {
-            width: 350px; /* Ancho fijo para el panel lateral */
-            padding: 15px;
-            background-color: #fff;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-        }
-        /* Contenedor de Mapas (Horizontal) */
-        .map-container-wrapper {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column; /* Mapas apilados verticalmente */
-            padding-left: 5px;
-        }
-        .map-view {
-            flex: 1;
-            height: 45vh; /* Mitad de la altura para cada mapa */
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-        }
+    <meta charset="UTF-8">
+    <title>Tracking Dinámico (G.A.B.I. System)</title>
+    <style>
+        /* Estilos base */
+        body {
+            font-family: Arial, sans-serif; 
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        /* Estilos para la Mejora 2: Panel lateral y Contenedor Principal */
+        .main-container {
+            display: flex;
+            flex-grow: 1;
+        }
+        .controls-panel {
+            width: 350px; /* Ancho fijo para el panel lateral */
+            padding: 15px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        /* Contenedor de Mapas (Horizontal) */
+        .map-container-wrapper {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column; /* Mapas apilados verticalmente */
+            padding-left: 5px;
+        }
+        .map-view {
+            flex: 1;
+            height: 45vh; /* Mitad de la altura para cada mapa */
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+        }
 
-        #current-map-wrapper {
-            position: relative;
-            flex: 1;
-        }
-        #day-counter-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
-            font-size: 2.5em; /* Número grande */
-            font-weight: bold;
-            color: #ff0000;
-            background-color: rgba(255, 255, 255, 0.7);
-            border: 3px solid #ff0000;
-            padding: 10px 20px;
-            border-radius: 8px;
-            pointer-events: none;
-            display: none;
-            text-shadow: 1px 1px 2px white;
-        }
-            
-        .search-container input[type="text"], 
-        .search-container select {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        /* Estilos para el Contenedor de Ficha de Datos */
-        #material-details {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            background-color: #f9f9f9;
-            border-radius: 6px;
-            font-size: 0.9em;
-            flex-grow: 1;
-            overflow-y: auto;
-        }
-        #material-details h4 {
-            margin-top: 0;
-            color: #1a73e8;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 5px;
-        }
+        #current-map-wrapper {
+            position: relative;
+            flex: 1;
+        }
+        #day-counter-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            font-size: 2.5em; /* Número grande */
+            font-weight: bold;
+            color: #ff0000;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 3px solid #ff0000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            pointer-events: none;
+            display: none;
+            text-shadow: 1px 1px 2px white;
+        }
+            
+        .search-container input[type="text"], 
+        .search-container select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        /* Estilos para el Contenedor de Ficha de Datos */
+        #material-details {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            font-size: 0.9em;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        #material-details h4 {
+            margin-top: 0;
+            color: #1a73e8;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
 
-        .detail-row strong {
-            display: inline-block;
-            width: 120px; /* Alineación de etiquetas */
-            color: #555;
-        }
-        #results-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        #results-list li {
-            padding: 4px 0;
-            border-bottom: 1px dotted #eee;
-        }
-    </style>
+        .detail-row strong {
+            display: inline-block;
+            width: 120px; /* Alineación de etiquetas */
+            color: #555;
+        }
+        #results-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #results-list li {
+            padding: 4px 0;
+            border-bottom: 1px dotted #eee;
+        }
+    </style>
 </head>
 <body>
 
-    <header>
-        <h1>Sistema de Tracking de Materiales <small>(© aloris)</small></h1>
-    </header>
+    <header>
+        <h1>Sistema de Tracking de Materiales <small>(© aloris)</small></h1>
+    </header>
 
-    <div class="main-container">
-        
-        <div class="controls-panel">
-            
-            <div class="search-container">
-                <label for="search-selector" style="font-weight: bold;">1. Seleccionar Campo de Búsqueda:</label>
-                <select id="search-selector">
-                    <option value="ID_MATERIAL">ID de Material (M1, MAT_1)</option>
-                    <option value="DESCRIPCION">Descripción</option>
-                    <option value="OC">Orden de Compra (OC)</option>
-                    <option value="GUIA">Número de Guía</option>
-                    <option value="PLANO_REF">Plano de Referencia</option>
-                </select>
-                
-                <label for="search-input" style="font-weight: bold;">2. Escribir Término (Diccionario):</label>
-                <input type="text" id="search-input" placeholder="Buscar..." oninput="filterDictionary(this.value)">
-                
-                <div id="dictionary-results" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; margin-top: 10px; display: none;">
-                    <ul id="results-list"></ul>
-                </div>
-            </div>
-            
-            <hr style="width: 100%; border-top: 1px solid #eee;">
-            
-            <div id="status-message" style="margin-bottom: 15px;">Estado: Inicializando sistema...</div>
-            
-            <div id="material-details" style="display: none;">
-                <h4>Ficha de Datos del Material Activo</h4>
-            </div>
+    <div class="main-container">
+        
+        <div class="controls-panel">
+            
+            <div class="search-container">
+                <label for="search-selector" style="font-weight: bold;">1. Seleccionar Campo de Búsqueda:</label>
+                <select id="search-selector">
+                    <option value="ID_MATERIAL">ID de Material (M1, MAT_1)</option>
+                    <option value="DESCRIPCION">Descripción</option>
+                    <option value="OC">Orden de Compra (OC)</option>
+                    <option value="GUIA">Número de Guía</option>
+                    <option value="PLANO_REF">Plano de Referencia</option>
+                </select>
+                
+                <label for="search-input" style="font-weight: bold;">2. Escribir Término (Diccionario):</label>
+                                <input type="text" id="search-input" placeholder="Buscar..." oninput="filterDictionary(this.value)">
+                
+                <div id="dictionary-results" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; margin-top: 10px; display: none;">
+                    <ul id="results-list"></ul>
+                </div>
+            </div>
+            
+            <hr style="width: 100%; border-top: 1px solid #eee;">
+            
+            <div id="status-message" style="margin-bottom: 15px;">Estado: Inicializando sistema...</div>
+            
+            <div id="material-details" style="display: none;">
+                <h4>Ficha de Datos del Material Activo</h4>
+            </div>
 
-        </div>
+        </div>
 
-        <div class="map-container-wrapper">
-            <div id="current-map-wrapper">
-                <div id="current-map" class="map-view"></div>
-                <div id="day-counter-overlay"></div>
-            </div>
-            
-            <div id="history-map" class="map-view"></div>
-        </div>
-        
-    </div>
+        <div class="map-container-wrapper">
+            <div id="current-map-wrapper">
+                <div id="current-map" class="map-view"></div>
+                <div id="day-counter-overlay"></div>
+            </div>
+            
+            <div id="history-map" class="map-view"></div>
+        </div>
+        
+    </div>
 
-    
-    <script>
+    
+    <script>
 // =======================================================================
 // *** 1. CONFIGURACIÓN CRÍTICA Y VARIABLES GLOBALES ***
 // =======================================================================
@@ -175,6 +175,7 @@ let historyMap; // Mapa de Tracking Histórico
 let allMaterials = [];
 let activeMaterial = null; // Objeto del material activo
 let activeMarker = null; 
+let activeMarkerId = null;
 let blinkInterval = null; 
 let historyMarkers = []; 
 let polyline = null; 
@@ -184,12 +185,10 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 // Carga la API de Google Maps de forma asíncrona
 function loadGoogleMapsScript() {
     const script = document.createElement('script');
-    // NOTA: EL CALLBACK DE LA API DE MAPS SIEMPRE DEBE SER initMap
     script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
     script.async = true;
     document.head.appendChild(script);
 }
-
 
 // =======================================================================
 // 2. UTILIDADES DE CÁLCULO DE TIEMPO (Para resolver NaN días)
@@ -197,8 +196,6 @@ function loadGoogleMapsScript() {
 
 /**
  * Intenta convertir un valor a un objeto Date válido (Ajustando a medianoche UTC para días).
- * @param {string|Date} dateValue - La fecha a convertir.
- * @returns {Date | null} Un objeto Date válido o null.
  */
 function getValidDate(dateValue) {
     if (!dateValue || dateValue === 'N/A' || dateValue === '') {
@@ -207,11 +204,9 @@ function getValidDate(dateValue) {
     
     let date = null;
     
-    // Convertir la cadena (asumimos YYYY-MM-DD o similar)
     if (dateValue instanceof Date) {
         date = dateValue;
     } else if (typeof dateValue === 'string') {
-        // Intentamos un parseo que maneje el formato YYYY-MM-DD y se ajuste a medianoche local
         date = new Date(dateValue.split('T')[0]); 
     }
 
@@ -226,9 +221,6 @@ function getValidDate(dateValue) {
 
 /**
  * Calcula la diferencia en días entre dos fechas.
- * @param {Date} startDate - La fecha de inicio (llegada).
- * @param {Date} endDate - La fecha de fin (salida).
- * @returns {number | string} El número de días de permanencia (entero) o "N/A".
  */
 function calculateDaysDifference(startDate, endDate) {
     const start = getValidDate(startDate);
@@ -239,87 +231,17 @@ function calculateDaysDifference(startDate, endDate) {
     }
 
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    
-    // Diferencia absoluta en milisegundos
     const diffTime = end.getTime() - start.getTime(); 
     
-    // Si es negativa (error lógico), regresamos 0 días
     if (diffTime < 0) return 0; 
     
-    // Usamos Math.round() para manejar transiciones de DST/zona horaria
     const diffDays = Math.round(diffTime / MS_PER_DAY); 
     
     return diffDays;
 }
 
-
-// =======================================================================
-// 3. INICIALIZACIÓN Y MANEJO DE DATOS (JSONP)
-// =======================================================================
-
-/**
- * Función de callback de JSONP. Se llama automáticamente desde Apps Script.
- * @param {object} response - El objeto de respuesta JSON (o JSONP).
- */
-window.cargarDatosMateriales = function(response) {
-    console.log("Datos recibidos:", response);
-    
-    if (response.status === 'success') {
-        // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL
-        allMaterials = response.data.filter(item => item && item.ID_MATERIAL);
-
-        // Pre-procesar todos los materiales (cálculo de permanencia)
-        allMaterials.forEach(processMaterialHistory); 
-        
-        // Actualiza el estado del sistema
-        if (initialLoad) {
-            document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
-            initialLoad = false;
-        } else {
-            document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-        }
-        
-        // Si hay un material activo, lo actualizamos con los nuevos datos
-        if (activeMaterial && activeMaterial.ID_MATERIAL) {
-            updateActiveMarker(activeMaterial.ID_MATERIAL);
-        }
-
-    } else {
-        console.error("Error del Endpoint:", response.message);
-        document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
-    }
-}
-
-
-/**
- * Inicia la carga de datos (JSONP) y establece el intervalo de refresco.
- */
-function iniciarCargaDeDatos() {
-    // 1. Carga inicial (inyección de script)
-    const script = document.createElement('script');
-    script.src = `${APPS_SCRIPT_URL}?callback=cargarDatosMateriales`; 
-    document.getElementsByTagName('head')[0].appendChild(script);
-
-    // 2. Configura el refresco periódico
-    setInterval(() => {
-        // Para refrescar, simplemente inyectamos el script JSONP de nuevo.
-        const refreshScript = document.createElement('script');
-        refreshScript.src = `${APPS_SCRIPT_URL}?callback=cargarDatosMateriales&t=${new Date().getTime()}`; // Añadir timestamp para evitar caché
-        document.getElementsByTagName('head')[0].appendChild(refreshScript);
-        
-        // Limpiamos la etiqueta inyectada después de un breve tiempo
-        setTimeout(() => refreshScript.remove(), 500); 
-    }, REFRESH_INTERVAL_MS); 
-}
-
-
-// =======================================================================
-// 4. LÓGICA DE PROCESAMIENTO Y VISUALIZACIÓN
-// =======================================================================
-
 /**
  * PROCESAMIENTO CLAVE: Calcula la permanencia para cada punto histórico.
- * @param {object} material - El objeto del material.
  */
 function processMaterialHistory(material) {
     if (!material || !material.HISTORY || material.HISTORY.length === 0) {
@@ -332,17 +254,14 @@ function processMaterialHistory(material) {
 
     for (let i = 0; i < history.length; i++) {
         const punto = history[i];
-        const fechaLlegada = punto.arrival; // La cadena de fecha
+        const fechaLlegada = punto.arrival;
         let fechaSalida;
         let fechaSalidaString;
 
-        // Determinar la fecha de salida:
         if (i < history.length - 1) {
-            // Caso 1: Punto intermedio. La salida es la llegada del siguiente punto.
             fechaSalida = history[i + 1].arrival;
             fechaSalidaString = getValidDate(fechaSalida) ? getValidDate(fechaSalida).toLocaleDateString('es-PE') : 'N/A';
         } else {
-            // Caso 2: Último punto. La salida es HOY.
             fechaSalida = fechaHoy;
             fechaSalidaString = 'En Curso';
         }
@@ -361,9 +280,58 @@ function processMaterialHistory(material) {
 
 
 // =======================================================================
-// 5. MANEJO DE MARCADORES Y MAPAS
+// 3. INICIALIZACIÓN Y MANEJO DE DATOS (JSONP)
 // =======================================================================
 
+/**
+ * Función de callback de JSONP (Global para ser llamada por Apps Script).
+ */
+window.cargarDatosMateriales = function(response) {
+    console.log("Datos recibidos:", response);
+    
+    if (response.status === 'success') {
+        allMaterials = response.data.filter(item => item && item.ID_MATERIAL);
+        allMaterials.forEach(processMaterialHistory); 
+        
+        if (initialLoad) {
+            document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
+            initialLoad = false;
+        } else {
+            document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
+        }
+        
+        if (activeMaterial && activeMaterial.ID_MATERIAL) {
+            updateActiveMarker(activeMaterial.ID_MATERIAL);
+        }
+
+    } else {
+        console.error("Error del Endpoint:", response.message);
+        document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
+    }
+}
+
+/**
+ * Inicia la carga de datos (JSONP) y establece el intervalo de refresco.
+ */
+function iniciarCargaDeDatos() {
+    // 1. Carga inicial (inyección de script)
+    const script = document.createElement('script');
+    script.src = `${APPS_SCRIPT_URL}?callback=cargarDatosMateriales`; 
+    document.getElementsByTagName('head')[0].appendChild(script);
+
+    // 2. Configura el refresco periódico
+    setInterval(() => {
+        const refreshScript = document.createElement('script');
+        refreshScript.src = `${APPS_SCRIPT_URL}?callback=cargarDatosMateriales&t=${new Date().getTime()}`; 
+        document.getElementsByTagName('head')[0].appendChild(refreshScript);
+        
+        setTimeout(() => refreshScript.remove(), 500); 
+    }, REFRESH_INTERVAL_MS); 
+}
+
+/**
+ * Función de inicialización de los dos mapas (Global para el callback de Google Maps).
+ */
 window.initMap = function() {
     const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
 
@@ -379,11 +347,75 @@ window.initMap = function() {
         mapId: 'DEMO_MAP_ID_HISTORY' 
     });
     
-    // Inicia la carga de datos y el refresco periódico
     iniciarCargaDeDatos(); 
 }
 
-// ... (Resto de funciones de Marcadores y Vistas) ...
+
+// =======================================================================
+// 4. LÓGICA DE BÚSQUEDA Y MANEJO DE MARCADORES (Funciones Globales Corregidas)
+// =======================================================================
+
+/**
+ * Filtra los materiales basándose en el campo seleccionado y el término de búsqueda. (GLOBAL)
+ */
+window.filterDictionary = function(searchTerm) {
+    const selector = document.getElementById('search-selector');
+    const searchField = selector.value;
+    const resultsContainer = document.getElementById('dictionary-results');
+    const resultsList = document.getElementById('results-list');
+    
+    if (!allMaterials || allMaterials.length === 0) {
+        resultsContainer.style.display = 'none';
+        return;
+    }
+    
+    if (searchTerm.length < 2) {
+        resultsContainer.style.display = 'none';
+        return;
+    }
+
+    const lowerCaseSearch = searchTerm.toLowerCase();
+
+    const filtered = allMaterials.filter(material => {
+        // Cláusula de salvaguarda contra TypeError
+        const value = (material && material[searchField] || '').toString().toLowerCase();
+        return value.includes(lowerCaseSearch);
+    });
+
+    resultsList.innerHTML = '';
+    
+    if (filtered.length > 0) {
+        resultsContainer.style.display = 'block';
+        
+        filtered.slice(0, 10).forEach(material => {
+            const li = document.createElement('li');
+            const materialId = material.ID_MATERIAL;
+            const displayValue = material[searchField] || 'N/A';
+            
+            li.innerHTML = `
+                <a href="#" onclick="selectMaterialFromList('${materialId}'); return false;" style="color: #007bff; text-decoration: none;">
+                    <strong>ID ${materialId}</strong>
+                </a>: ${displayValue}
+            `;
+            resultsList.appendChild(li);
+        });
+    } else {
+        resultsContainer.style.display = 'none';
+    }
+};
+
+/**
+ * Función auxiliar para seleccionar el material desde la lista de diccionario. (GLOBAL)
+ */
+window.selectMaterialFromList = function(materialId) {
+    const searchInput = document.getElementById('search-input');
+    
+    document.getElementById('dictionary-results').style.display = 'none';
+    searchInput.value = ''; 
+
+    updateActiveMarker(materialId);
+};
+
 
 /**
  * Función CRÍTICA de actualización de marcador.
@@ -404,9 +436,21 @@ function updateActiveMarker(searchId) {
             lng: parseFloat(material.LONGITUD) 
         };
 
-        // El resto del código que crea el marcador activo y el InfoWindow...
-        // ... (Tu código existente para crear el marcador principal) ...
-        
+        // Generación del Content String
+        const contentString = `
+            <div style="font-family: Arial, sans-serif; max-width: 300px;">
+                <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+                <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+                <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>
+                <hr style="border-top: 1px solid #eee; margin: 8px 0;">
+                <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+                <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
+                <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
+                <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
+                <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+            </div>`;
+
+
         // Crea el nuevo marcador 
         activeMarker = new google.maps.Marker({
              position: position,
@@ -421,17 +465,17 @@ function updateActiveMarker(searchId) {
              }
          });
          
-         // INICIA EL EFECTO DE PARPADEO (3 segundos)
          startBlinking(activeMarker, 3000); 
 
          map.setCenter(position);
          map.setZoom(15); 
          
-         // CRÍTICO: Llamadas de actualización con el material ya procesado
+         const infoWindow = new google.maps.InfoWindow({ content: contentString });
+         activeMarker.addListener('click', () => { infoWindow.open(map, activeMarker); });
+         
          displayMaterialDetails(material.ID_MATERIAL); 
-         updateDayCounter(material); // Ahora recibe el objeto completo
+         updateDayCounter(material); 
 
-         // Si ya ha sido procesado, el material tiene la propiedad HISTORY con los cálculos
          if (material.HISTORY && material.HISTORY.length > 0) {
              plotHistoricalTracking(material, position);
          } else {
@@ -445,33 +489,8 @@ function updateActiveMarker(searchId) {
     }
 }
 
-
 /**
- * Función CRÍTICA de limpieza.
- */
-function clearActiveMarker() {
-    if (activeMarker) {
-        activeMarker.setMap(null);
-        activeMarker = null;
-        activeMaterial = null; // Limpiamos el objeto activo
-        activeMarkerId = null;
-    }
-    if (blinkInterval) {
-        clearInterval(blinkInterval);
-        blinkInterval = null;
-    }
-    document.getElementById('material-details').style.display = 'none';
-    document.getElementById('day-counter-overlay').style.display = 'none';
-    clearHistoryTracking(); 
-    
-    if (initialLoad === false) { 
-        document.getElementById('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.'; 
-    }
-}
-
-
-/**
- * LÓGICA DE TRACKING HISTÓRICO (Actualizada para usar los datos calculados).
+ * LÓGICA DE TRACKING HISTÓRICO (Usa los datos calculados en processMaterialHistory).
  */
 function plotHistoricalTracking(material, currentPosition) {
     clearHistoryTracking(); 
@@ -480,23 +499,20 @@ function plotHistoricalTracking(material, currentPosition) {
     const pathCoordinates = [];
     const bounds = new google.maps.LatLngBounds();
     
-    // Iteramos sobre el historial, que ahora tiene los campos 'permanencia', 'fecha_llegada', 'fecha_salida'
     material.HISTORY.forEach((point, index) => {
         const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
         
         pathCoordinates.push(position);
         bounds.extend(position);
 
-        // Si es el ÚLTIMO PUNTO, lo marcamos de forma diferente o lo ignoramos, ya que es el punto actual.
-        // Lo ignoramos para evitar duplicidad visual con el mapa principal.
         if (index === material.HISTORY.length - 1) {
-            // Marcador de la posición actual en el mapa histórico (ej: un cuadrado)
+             // Marcador de la posición actual en el mapa histórico (ej: un cuadrado)
              const marker = new google.maps.Marker({
                  position: position,
                  map: historyMap,
                  title: `Punto Actual: ${point.fecha_llegada}`,
                  icon: {
-                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, // Icono final
+                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
                     scale: 6,
                     fillColor: '#FF0000',
                     fillOpacity: 1,
@@ -521,7 +537,7 @@ function plotHistoricalTracking(material, currentPosition) {
                 }
             });
             
-            // InfoWindow con los 3 datos CLAVE (ya calculados en processMaterialHistory)
+            // InfoWindow con los 3 datos CLAVE (ya calculados)
             const infoContent = `
                 <div style="font-size: 0.9em;">
                     <strong>Punto Histórico ${index + 1}</strong><br>
@@ -546,12 +562,10 @@ function plotHistoricalTracking(material, currentPosition) {
         map: historyMap
     });
 
-    // Ajusta el zoom del mapa histórico
     if (!bounds.isEmpty()) {
         historyMap.fitBounds(bounds);
     }
 }
-
 
 /**
  * LÓGICA DEL CONTADOR DE DÍAS (SUPERPUESTO)
@@ -569,19 +583,119 @@ function updateDayCounter(material) {
 }
 
 
-// ... (Tus funciones existentes para startBlinking, clearHistoryTracking, filterDictionary, selectMaterialFromList, displayMaterialDetails, etc.) ...
-// *********************************************************************************************************************************************************
-// NOTA: Se asume que las demás funciones de tu código (filterDictionary, displayMaterialDetails, etc.) se mantienen en el código final que usarás.
-// Las he omitido aquí por brevedad, pero las funciones que he modificado/añadido son las críticas para el problema de la fecha y el JSONP.
-// *********************************************************************************************************************************************************
+// =======================================================================
+// 5. FUNCIONES DE UTILIDAD (Parpadeo, Limpieza, Detalles)
+// =======================================================================
+
+function startBlinking(marker, interval) {
+    if (blinkInterval) {
+        clearInterval(blinkInterval);
+    }
+    
+    let isVisible = true;
+    
+    blinkInterval = setInterval(() => {
+        const icon = marker.getIcon();
+        // Cambia la opacidad para simular el parpadeo
+        icon.fillOpacity = isVisible ? 0.2 : 0.9; 
+        marker.setIcon(icon);
+        isVisible = !isVisible; 
+    }, interval / 2); 
+}
+
+function clearHistoryTracking() {
+    historyMarkers.forEach(marker => marker.setMap(null));
+    historyMarkers = [];
+    
+    if (polyline) {
+        polyline.setMap(null);
+        polyline = null;
+    }
+    
+    // Oculta el contenedor si no hay seguimiento
+    document.getElementById('history-map').style.display = 'none';
+}
+
+function clearActiveMarker() {
+    if (activeMarker) {
+        activeMarker.setMap(null);
+        activeMarker = null;
+        activeMaterial = null; 
+        activeMarkerId = null;
+    }
+    if (blinkInterval) {
+        clearInterval(blinkInterval);
+        blinkInterval = null;
+    }
+    document.getElementById('material-details').style.display = 'none'; 
+    document.getElementById('day-counter-overlay').style.display = 'none'; 
+    clearHistoryTracking(); 
+    
+    if (initialLoad === false) { 
+        document.getElementById('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.'; 
+    }
+}
+
+
+/**
+ * Muestra la ficha de datos completa en el panel lateral.
+ */
+function displayMaterialDetails(materialId) {
+    const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+    const detailsDiv = document.getElementById('material-details');
+    
+    if (!material) {
+        detailsDiv.style.display = 'none';
+        return;
+    }
+    
+    detailsDiv.style.display = 'block';
+    
+    let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
+    
+    const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION']; 
+    
+    keysOrder.forEach(key => {
+        let value = material[key] || 'N/A';
+        
+        if (value === 'N/A' && !material.hasOwnProperty(key)) return;
+        
+        const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
+
+        htmlContent += `
+            <div class="detail-row">
+                <strong>${displayKey}:</strong> ${value}
+            </div>
+        `;
+    });
+
+    // Lógica de visualización del historial en la ficha
+    if (material.HISTORY && material.HISTORY.length > 0) {
+        htmlContent += `<h4 style="margin-top: 15px;">Historial de Movimientos (${material.HISTORY.length})</h4>`;
+        
+        material.HISTORY.forEach((point, index) => {
+            // Usamos los campos ya procesados
+            const arrival = point.fecha_llegada || 'N/A'; 
+            const departure = point.fecha_salida || 'En Curso';
+            const days = point.permanencia || 'N/A';
+            const lat = parseFloat(point.lat).toFixed(4);
+            const lng = parseFloat(point.lng).toFixed(4);
+            
+            htmlContent += `
+                <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid #ccc; padding-left: 5px;">
+                    <strong>#${index + 1} (${days} días):</strong> Arribo: ${arrival} / Salida: ${departure}
+                </div>
+            `;
+        });
+    }
+    
+    detailsDiv.innerHTML = htmlContent;
+}
 
 // Inicia el proceso de carga del script de Google Maps (esto llama a initMap)
 loadGoogleMapsScript();
-
-        
-    </script>
+</script>
 
 
-    
 </body>
 </html>
