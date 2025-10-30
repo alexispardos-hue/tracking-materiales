@@ -205,20 +205,26 @@
             
             // Inicia la actualización periódica
             startDataRefresh();
-            document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
+           // document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
         }
 
         // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
         async function fetchMaterialData() {
             try {
+                
                 const response = await fetch(ENDPOINT_URL);
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
-                    allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
-                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-                    
+                        // ... (filtrado) ...
+                        
+                        // MODIFICACIÓN CRÍTICA DEL ESTADO
+                        if (initialLoad) {
+                            document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
+                            initialLoad = false;
+                        } else {
+                            document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de materiales: ${allMaterials.length}`;
+                        }
                     // Si ya hay un material activo, actualiza solo ese marcador
                     if (activeMarkerId) {
                         updateActiveMarker(activeMarkerId);
@@ -501,12 +507,11 @@ function updateDayCounter(lastUpdateStr, position) {
                 clearInterval(blinkInterval);
                 blinkInterval = null;
             }
-            document.getElementById('material-details').style.display = 'none'; // Oculta la ficha
-             document.getElementById('day-counter-overlay').style.display = 'none'; //
-            clearHistoryTracking(); // <--- CRÍTICO: Limpiar también el mapa de historial
-            // Opcional: Reestablecer el mensaje de estado
-            document.getElementById('status-message').innerText = 'Estado: Seguimiento i
-                
+            document.getElementById('day-counter-overlay').style.display = 'none';
+            clearHistoryTracking(); // <--- Limpiar también el mapa de historial
+            // Reestablecer el mensaje de estado a 'inactivo'
+            document.getElementById('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.'; 
+        } // CIERRE DE FUNCIÓN RESTAURADO      
         }
         
         // 8. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
