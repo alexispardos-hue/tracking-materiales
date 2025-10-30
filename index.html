@@ -1,355 +1,184 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G.A.B.I. - Tracking de Materiales</title>
+    <title>Tracking Dinámico (G.A.B.I. System)</title>
     <style>
+        /* Estilos básicos para la interfaz */
+        #map {
+            height: 600px; /* Tamaño fijo para la visualización del mapa */
+            width: 100%;
+        }
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            margin: 20px;
         }
-        header {
-            background-color: #333;
-            color: white;
-            padding: 15px 20px;
-            text-align: center;
+        /* CLASE CRÍTICA PARA EL EFECTO DE PARPADEO */
+        /* Esta animación CSS hace que el punto parpadee sin consumir más API calls */
+        .pulsating-marker {
+            /* Alterna la opacidad del 100% al 20% */
+            animation: pulse-animation 1s infinite alternate; 
         }
-        .main-container {
-            display: flex;
-            flex-grow: 1;
-        }
-        .controls-panel {
-            width: 300px;
-            padding: 20px;
-            background-color: #fff;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-        }
-        #map {
-            flex-grow: 1;
-            height: calc(100vh - 56px); /* Altura total menos el header */
-        }
-        .search-container input[type="text"] {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        #status-message {
-            margin-top: 15px;
-            font-size: 0.9em;
-            color: #555;
-        }
-        #warning-message {
-            color: #ff0000;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        /* Estilos para el Diccionario de Búsqueda */
-        #description-results {
-            margin-top: 15px;
-            max-height: 250px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
-        }
-        #results-list li {
-            padding: 5px 0;
-            border-bottom: 1px dotted #eee;
-        }
-        #results-list li:last-child {
-            border-bottom: none;
+
+        @keyframes pulse-animation {
+            from { opacity: 1.0; }
+            to { opacity: 0.2; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1> Sistema de Tracking de Materiales <small>(© aloris)</small></h1>
-    </header>
+    <h1>Sistema de Tracking de Materiales - V1.0</h1>
+    <p>Ingrese el ID del material para visualizar su ubicación más reciente.</p>
 
-    <div class="main-container">
+    <input type="text" id="search-input" placeholder="Buscar ID de Material (Ej: ITEM-789)" onkeyup="filterMaterial()">
+    <p id="status-message" style="color: grey;">Estado: Inicializando sistema...</p>
+    
+    <div id="map"></div>
+
+    <script>
+        // *** 1. CONFIGURACIÓN CRÍTICA ***
+        // ¡REEMPLAZAR ESTAS DOS VARIABLES!
+        const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
+        const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbwLsETbP2RB9Wj_BPut-Edk8bT4YSAckEjSb5x-l9atLPqIjDlDbzm_2sqIzLnIsOYA/exec'; 
         
-        <div class="controls-panel">
-            
-            <div class="search-container">
-                <label for="material-id-input" style="font-weight: bold;">Buscar Material por ID:</label>
-                <input type="text" id="material-id-input" placeholder="Ej: M1 o MAT_1" 
-                    onkeyup="if(event.key === 'Enter') filterMaterial()">
-            </div>
-            
-            <hr>
-
-            <div class="search-container">
-                <label for="search-description" style="font-weight: bold;">Búsqueda por Diccionario:</label>
-                <input type="text" id="search-description" placeholder="Buscar por descripción, OC o plano..." onkeyup="filterDescription(this.value)">
-            </div>
-            
-            <div id="description-results" style="display: none;">
-                <h4 style="margin-top: 0;">Resultados Encontrados:</h4>
-                <ul id="results-list">
-                    </ul>
-            </div>
-            
-            <hr>
-
-            <div id="status-message">Estado: Inicializando...</div>
-            <div id="warning-message"></div>
-
-        </div>
-
-        <div id="map"></div>
-
-    </div>
-
-<script>
-    // ==========================================================
-    // ** CONFIGURACIÓN CRÍTICA: SUSTITUIR ESTOS VALORES **
-    // ==========================================================
-    const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; // Reemplazar con su API Key de Google Maps Platform
-    const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbwEcyp7SGFcqDw87NvbaUyFxmEOK411VnxK13Ef5cMou7nQ_g_-iPsMYVjX9PJwAo7r/exec'; // Reemplazar con la URL de su Web App de Apps Script
-    // ==========================================================
-
-    // Variables de Estado Global
-    let map;
-    let activeMarker = null;
-    let infoWindow = null;
-    let allMaterials = []; // Almacena todos los datos del Google Sheet
-    let activeMarkerId = null; // El ID del material actualmente trackeado
-
-    // Referencias a los contenedores del Diccionario
-    const resultsContainer = document.getElementById('description-results');
-    const resultsList = document.getElementById('results-list');
-
-
-    /**
-     * Inicializa el mapa de Google Maps.
-     */
-    function initMap() {
-        // Coordenadas de Lima, Perú (Centroide inicial)
-        const initialCoords = { lat: -12.0464, lng: -77.0428 };
+        // Variables globales del estado del sistema
+        let map;
+        let allMaterials = [];
+        let activeMarker = null; // Marcador actualmente visible
+        let activeMarkerId = null; // ID del material activo
         
-        map = new google.maps.Map(document.getElementById("map"), {
-            zoom: 12,
-            center: initialCoords,
-            mapId: 'DEMO_MAP_ID' 
-        });
+        // Carga la API de Google Maps de forma asíncrona
+        function loadGoogleMapsScript() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
+            script.async = true;
+            document.head.appendChild(script);
+        }
 
-        infoWindow = new google.maps.InfoWindow();
+        // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
+        window.initMap = function() {
+            // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
+            const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
 
-        // 1. Carga los datos inmediatamente
-        fetchMaterialData();
-    }
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 12,
+                center: defaultLocation,
+                mapId: 'DEMO_MAP_ID' // Puede ser sustituido por un ID de mapa personalizado
+            });
+            
+            // Inicia la actualización periódica
+            startDataRefresh();
+            document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
+        }
 
-
-    /**
-     * Obtiene los datos del Google Sheet a través del Apps Script Endpoint.
-     */
-function fetchMaterialData() {
-    fetch(ENDPOINT_URL)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Fallo en la conexión de red');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.status === 'success') {
-                // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
-                allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
-                document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-
-                if (map && allMaterials.length > 0) {
-                     if (!activeMarkerId) {
-                        const initialId = allMaterials[0].ID_MATERIAL; 
-                        updateActiveMarker(initialId);
-                        document.getElementById('material-id-input').value = initialId; 
-                        activeMarkerId = initialId;
+        // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT
+        async function fetchMaterialData() {
+            try {
+                const response = await fetch(ENDPOINT_URL);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    allMaterials = data.data; // Almacena todos los datos del Excel
+                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
+                    
+                    // Si ya hay un material activo, actualiza solo ese marcador
+                    if (activeMarkerId) {
+                        updateActiveMarker(activeMarkerId);
                     }
+                } else {
+                    console.error("Error del Endpoint:", data.message);
+                    document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
                 }
+            } catch (error) {
+                console.error('Error de conexión con Apps Script:', error);
+                document.getElementById('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
+            }
+        }
+
+        // 4. LÓGICA DE BÚSQUEDA Y FILTRADO
+        window.filterMaterial = function() {
+            const searchId = document.getElementById('search-input').value.trim().toUpperCase();
+            
+            // Si el campo de búsqueda está vacío, borra el marcador activo
+            if (!searchId) {
+                clearActiveMarker();
+                return;
+            }
+
+            // Actualiza la visualización con el ID buscado
+            updateActiveMarker(searchId);
+        }
+
+        // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR
+        function updateActiveMarker(searchId) {
+            const material = allMaterials.find(item => item.ID_MATERIAL.toUpperCase() === searchId);
+
+            clearActiveMarker(); // Elimina el marcador anterior
+
+            if (material && material.LATITUD && material.LONGITUD) {
+                activeMarkerId = searchId; // Establece el ID activo
+                
+                const position = { 
+                    lat: parseFloat(material.LATITUD), 
+                    lng: parseFloat(material.LONGITUD) 
+                };
+
+                // Crea el nuevo marcador
+                activeMarker = new google.maps.Marker({
+                    position: position,
+                    map: map,
+                    title: material.ID_MATERIAL,
+                    // Aplica la clase CSS para el efecto de parpadeo
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#FF0000',
+                        fillOpacity: 0.9,
+                        strokeWeight: 0,
+                        // Clave: inyecta la clase CSS para el parpadeo en la etiqueta SVG del marcador
+                        className: 'pulsating-marker' 
+                    }
+                });
+
+                // Centra el mapa en la nueva posición y establece un zoom adecuado
+                map.setCenter(position);
+                map.setZoom(15); 
+                
+                // Añade la información en un infowindow
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `<h3>${material.ID_MATERIAL}</h3><p>Estado: ${material.ESTADO || 'N/A'}</p><p>Coordenadas: ${position.lat}, ${position.lng}</p>`
+                });
+
+                activeMarker.addListener('click', () => {
+                    infoWindow.open(map, activeMarker);
+                });
+
+                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado.`;
 
             } else {
-                document.getElementById('status-message').innerText = `ERROR: No se pudieron obtener los datos. ${data.message}`;
+                document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
             }
-        })
-        .catch(error => {
-            document.getElementById('status-message').innerText = `ERROR: Fallo en la conexión de red. ${error.message}`;
-            console.error("Error al obtener datos:", error);
-        });
-}
+        }
 
-    /**
-     * Función principal que se dispara al buscar un ID de material (al presionar Enter).
-     */
-    function filterMaterial() {
-        const searchId = document.getElementById('material-id-input').value.trim();
-        if (!searchId) return;
-
-        activeMarkerId = searchId;
-        updateActiveMarker(searchId);
-    }
-
-
-    /**
-     * Mueve el marcador activo a la ubicación del material encontrado y actualiza el InfoWindow
-     * con todos los detalles (incluyendo las celdas añadidas).
-     * @param {string} materialId El ID_MATERIAL a buscar.
-     */
-    function updateActiveMarker(materialId) {
-        const searchId = materialId.toUpperCase();
+        // 6. FUNCIÓN DE LIMPIEZA
+        function clearActiveMarker() {
+            if (activeMarker) {
+                activeMarker.setMap(null);
+                activeMarker = null;
+                activeMarkerId = null;
+            }
+        }
         
-        // **FILTRADO ROBUSTO contra nulos en el ID_MATERIAL**
-        const material = allMaterials.find(item => 
-            item && item.ID_MATERIAL && item.ID_MATERIAL.toString().toUpperCase() === searchId
-        );
-
-        document.getElementById('warning-message').innerText = '';
-
-        if (!material) {
-            document.getElementById('warning-message').innerText = `Advertencia: Material ${materialId} no encontrado.`;
-            if (activeMarker) activeMarker.setMap(null); 
-            infoWindow.close();
-            return;
+        // 7. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
+        function startDataRefresh() {
+            // Hace la petición inicial
+            fetchMaterialData(); 
+            // Repite la petición cada 5000 milisegundos (5 segundos)
+            setInterval(fetchMaterialData, 5000); 
         }
 
-        const lat = parseFloat(material.LATITUD);
-        const lng = parseFloat(material.LONGITUD);
-
-        if (isNaN(lat) || isNaN(lng)) {
-            document.getElementById('warning-message').innerText = `Advertencia: Material ${materialId} sin coordenadas válidas.`;
-            if (activeMarker) activeMarker.setMap(null); 
-            infoWindow.close();
-            return;
-        }
-
-        const position = { lat: lat, lng: lng };
-
-        // 1. Generar el contenido detallado del InfoWindow (con las celdas añadidas)
-        const contentString = `
-            <div id="content" style="font-family: Arial, sans-serif; max-width: 300px;">
-                <h3 style="margin-top: 0; color: #1a73e8; font-size: 1.2em;">Material: ${material.ID_MATERIAL}</h3>
-                <div id="bodyContent">
-                    <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-                    <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>
-                    
-                    <hr style="border-top: 1px solid #eee; margin: 8px 0;">
-                    
-                    <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-                    <p><strong>Orden Compra (OC):</strong> ${material.OC || 'N/A'}</p>
-                    <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
-                    
-                    <hr style="border-top: 1px solid #eee; margin: 8px 0;">
-                    
-                    <p><strong>Plano de Referencia:</strong> 
-                        <a href="#" onclick="event.preventDefault(); alert('El plano es: ${material.PLANO_REF || 'No disponible'}');" style="color: #1a73e8; text-decoration: none; font-weight: bold;">
-                            ${material.PLANO_REF || 'Ver Referencia'}
-                        </a>
-                    </p>
-                </div>
-            </div>`;
-
-
-        // 2. Crear o mover el marcador
-        if (activeMarker) {
-            activeMarker.setPosition(position);
-            activeMarker.setAnimation(google.maps.Animation.BOUNCE);
-            setTimeout(() => {
-                activeMarker.setAnimation(null);
-            }, 1400); 
-        } else {
-            activeMarker = new google.maps.Marker({
-                position: position,
-                map: map,
-                title: materialId
-            });
-            activeMarker.addListener("click", () => {
-                infoWindow.open(map, activeMarker);
-            });
-        }
-
-        // 3. Abrir InfoWindow y centrar el mapa
-        infoWindow.setContent(contentString);
-        infoWindow.open(map, activeMarker);
-        map.setCenter(position);
-        map.setZoom(16);
-    }
-
-
-    // ==========================================================
-    // ** FUNCIONES PARA BÚSQUEDA POR DICCIONARIO (DESCRIPCIÓN) **
-    // ==========================================================
-
-    /**
-     * Filtra los materiales por Descripción, OC, Guía o Plano y actualiza la lista.
-     * @param {string} searchTerm El texto introducido por el usuario.
-     */
-    function filterDescription(searchTerm) {
-        if (searchTerm.length < 3) {
-            resultsContainer.style.display = 'none';
-            return;
-        }
-
-        const lowerCaseSearch = searchTerm.toLowerCase();
-
-        const filtered = allMaterials.filter(material => {
-            // Búsqueda en todos los campos de metadata
-            const descriptionMatch = (material.DESCRIPCION || '').toLowerCase().includes(lowerCaseSearch);
-            const ocMatch = (material.OC || '').toLowerCase().includes(lowerCaseSearch);
-            const guiaMatch = (material.GUIA || '').toLowerCase().includes(lowerCaseSearch);
-            const planoMatch = (material.PLANO_REF || '').toLowerCase().includes(lowerCaseSearch);
-
-            return descriptionMatch || ocMatch || guiaMatch || planoMatch;
-        });
-
-        resultsList.innerHTML = '';
-
-        if (filtered.length > 0) {
-            resultsContainer.style.display = 'block';
-            
-            filtered.forEach(material => {
-                const li = document.createElement('li');
-                const materialId = material.ID_MATERIAL;
-                const description = material.DESCRIPCION || 'Sin Descripción';
-                
-                li.innerHTML = `
-                    <a href="#" onclick="selectMaterialFromList('${materialId}'); return false;" style="color: #007bff; text-decoration: none;">
-                        <strong>ID ${materialId}</strong>
-                    </a>: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}
-                    (OC: ${material.OC || 'N/A'})
-                `;
-                resultsList.appendChild(li);
-            });
-        } else {
-            resultsContainer.style.display = 'none';
-        }
-    }
-
-    /**
-     * Función auxiliar para buscar el material desde la lista de diccionario.
-     * @param {string} materialId El ID_MATERIAL a buscar.
-     */
-    function selectMaterialFromList(materialId) {
-        const inputId = document.getElementById('material-id-input');
-        
-        resultsContainer.style.display = 'none';
-        inputId.value = materialId;
-        
-        updateActiveMarker(materialId);
-    }
-</script>
-
-<script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap">
-</script>
-
+        // Inicia el proceso de carga del script de Google Maps
+        loadGoogleMapsScript();
+    </script>
 </body>
 </html>
