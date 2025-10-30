@@ -333,21 +333,22 @@ function iniciarCargaDeDatos() {
  * Función de inicialización de los dos mapas (Global para el callback de Google Maps).
  */
 window.initMap = function() {
+  
     const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
 
     map = new google.maps.Map(document.getElementById('current-map'), {
         zoom: 12,
         center: defaultLocation,
-        mapId: 'DEMO_MAP_ID_CURRENT'
+       // mapId: 'DEMO_MAP_ID_CURRENT'
     });
 
     historyMap = new google.maps.Map(document.getElementById('history-map'), { 
         zoom: 12,
         center: defaultLocation,
-        mapId: 'DEMO_MAP_ID_HISTORY' 
+       // mapId: 'DEMO_MAP_ID_HISTORY' 
     });
     
-    iniciarCargaDeDatos(); 
+ //   iniciarCargaDeDatos(); 
 }
 
 
