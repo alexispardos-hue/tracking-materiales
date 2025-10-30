@@ -173,6 +173,8 @@
         let activeMarker = null; // Marcador actualmente visible
         let activeMarkerId = null; // ID del material activo
         let blinkInterval = null; // CRÍTICO: Variable para controlar el intervalo de parpadeo (3s)
+        let historyMarkers = []; // <--- CRÍTICO: Marcadores de puntos históricos
+        let polyline = null; // <--- CRÍTICO: Polilínea del tracking
         
         // Carga la API de Google Maps de forma asíncrona
         function loadGoogleMapsScript() {
@@ -187,11 +189,19 @@
             // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
             const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
 
-            map = new google.maps.Map(document.getElementById('map'), {
+            map = new google.maps.Map(document.getElementById('current-map'), {
                 zoom: 12,
                 center: defaultLocation,
-                mapId: 'DEMO_MAP_ID' // Puede ser sustituido por un ID de mapa personalizado
+                mapId: 'DEMO_MAP_ID_CURRENT' // Puede ser sustituido por un ID de mapa personalizado
             });
+
+// 2. Mapa de Tracking Histórico (Contenedor: history-map)
+            historyMap = new google.maps.Map(document.getElementById('history-map'), { // <--- CRÍTICO: Inicialización del mapa histórico
+                zoom: 12,
+                center: defaultLocation,
+                mapId: 'DEMO_MAP_ID_HISTORY' 
+            });
+
             
             // Inicia la actualización periódica
             startDataRefresh();
@@ -355,11 +365,29 @@
     return Math.round(diffTime / oneDay); 
 }
 
+// 9. FUNCIÓN DE LIMPIEZA DEL MAPA HISTÓRICO
+        function clearHistoryTracking() {
+            // Elimina los marcadores históricos del mapa
+            historyMarkers.forEach(marker => marker.setMap(null));
+            historyMarkers = [];
+            
+            // Elimina la polilínea del mapa
+            if (polyline) {
+                polyline.setMap(null);
+                polyline = null;
+            }
+            
+            // Oculta el contenedor si no hay seguimiento
+            document.getElementById('history-map').style.display = 'none';
+        }
 
+
+
+        
 // 6. LÓGICA DE TRACKING HISTÓRICO
 function plotHistoricalTracking(historyData, materialId) {
     clearHistoryTracking(); 
-
+    document.getElementById('history-map').style.display = 'block'; // <--- CRÍTICO: Hacer visible el mapa histórico
     const pathCoordinates = [];
     const bounds = new google.maps.LatLngBounds();
     const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
@@ -474,6 +502,11 @@ function updateDayCounter(lastUpdateStr, position) {
                 blinkInterval = null;
             }
             document.getElementById('material-details').style.display = 'none'; // Oculta la ficha
+             document.getElementById('day-counter-overlay').style.display = 'none'; //
+            clearHistoryTracking(); // <--- CRÍTICO: Limpiar también el mapa de historial
+            // Opcional: Reestablecer el mensaje de estado
+            document.getElementById('status-message').innerText = 'Estado: Seguimiento i
+                
         }
         
         // 8. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
