@@ -325,851 +325,96 @@
     </div>
 
 
+<script>
 
-    
-
-    <script>
-
-        // *** 1. CONFIGURACIÓN CRÍTICA ***
-
-        // ¡REEMPLAZAR ESTAS DOS VARIABLES!
-
-        const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
-
-        const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxNy9jTgU3LWha7a5h7o6xR30BM6_qXwvAT7Sb9NF_etE7VJ9ftF-IjAllWNoU_3Q9Y/exec'; 
+    // *** 1. CONFIGURACIÓN CRÍTICA ***
+    // ¡REEMPLAZAR ESTAS DOS VARIABLES!
+    const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
+    const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxNy9jTgU3LWha7a5h7o6xR30BM6_qXwvAT7Sb9NF_etE7VJ9ftF-IjAllWNoU_3Q9Y/exec'; 
 
 
-        // Variables globales del estado del sistema
+    // Variables globales del estado del sistema
+    let map;
+    let historyMap; // Mapa de Tracking Histórico
+    let allMaterials = [];
+    let activeMaterial = null; // Objeto del material activo
+    let activeMarker = null; 
+    let activeMarkerId = null; // ID del material activo
+    let blinkInterval = null; 
+    let historyMarkers = []; 
+    let polyline = null; 
+    let initialLoad = true; 
+    const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
+    let isHistoryMapManualZoom = false; // Control de zoom manual del historial
+    let durationInfoWindow = null; // Variable de InfoWindow de duración (para limpieza de ser necesario)
+
+    // Carga la API de Google Maps de forma asíncrona
+    function loadGoogleMapsScript() {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
+        script.async = true;
+        document.head.appendChild(script);
+    }
 
 
+    // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
+    window.initMap = function() {
+        // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
+        const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
+        map = new google.maps.Map(document.getElementById('current-map'), {
+            zoom: 12,
+            center: defaultLocation,
+        });
 
-    
+        // 2. Mapa de Tracking Histórico (Contenedor: history-map)
+        historyMap = new google.maps.Map(document.getElementById('history-map'), {
+            zoom: 12,
+            center: defaultLocation,
+        });
 
-let map;
-let historyMap; // Mapa de Tracking Histórico
-let allMaterials = [];
-let activeMaterial = null; // Objeto del material activo
-let activeMarker = null; 
-let activeMarkerId = null; // ID del material activo
-let blinkInterval = null; 
-let historyMarkers = []; 
-let polyline = null; 
-let initialLoad = true; 
-const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
-let isHistoryMapManualZoom = false;
-let durationInfoWindow = null;        
-        // Carga la API de Google Maps de forma asíncrona
-
-        function loadGoogleMapsScript() {
-
-            const script = document.createElement('script');
-
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
-
-            script.async = true;
-
-            document.head.appendChild(script);
-
-        }
+        // Inicia la actualización periódica
+        startDataRefresh();
+    }
 
 
-        // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
-        window.initMap = function() {
-            // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
-            const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
-            map = new google.maps.Map(document.getElementById('current-map'), {
-                zoom: 12,
-                center: defaultLocation,
-        
-            });
+    // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
+    async function fetchMaterialData() {
+        try {
+            const response = await fetch(ENDPOINT_URL);
+            const data = await response.json(); 
 
-            // 2. Mapa de Tracking Histórico (Contenedor: history-map)
-            historyMap = new google.maps.Map(document.getElementById('history-map'), { // <--- CRÍTICO: Inicialización del mapa histórico
+            if (data.status === 'success') {
+                // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
+                allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
 
-                zoom: 12,
-                center: defaultLocation,
-
-
-            });
-
-            // Inicia la actualización periódica
-
-            startDataRefresh();
-
-            // Eliminado: document.getElementById('status-message').innerText = 'Estado: Sistema listo. Iniciando seguimiento periódico.';
-
-        }
-
-
-        // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
-
-        async function fetchMaterialData() {
-            try {
-             const response = await fetch(ENDPOINT_URL);
-                const data = await response.json();                
-
-                if (data.status === 'success') {
-                    // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
-                    allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
-
-                       // CRÍTICO: ACTUALIZA EL ESTADO AQUÍ, SOLO DESPUÉS DE LA PRIMERA CARGA EXITOSA
-
-                    if (initialLoad) {
-
-                        document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
-
-                        initialLoad = false;
-
-                    } else {
-
-                        document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-
-                    }
-
-                    // Si ya hay un material activo, actualiza solo ese marcador
-
-                    if (activeMarkerId) {
-
-                        updateActiveMarker(activeMarkerId);
-                    }
-
+                // CRÍTICO: ACTUALIZA EL ESTADO AQUÍ, SOLO DESPUÉS DE LA PRIMERA CARGA EXITOSA
+                if (initialLoad) {
+                    document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
+                    initialLoad = false;
                 } else {
-
-                    console.error("Error del Endpoint:", data.message);
-
-                    document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
-
+                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
                 }
 
-            } catch (error) {
-
-                console.error('Error de conexión con Apps Script:', error);
-
-                document.getElementById('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
-
-            }
-
-        }
-
-
-
-        // 4. LÓGICA DE BÚSQUEDA POR ID (Usando la tecla ENTER)
-
-        // Mantenida solo por compatibilidad, la búsqueda principal es ahora el diccionario.
-
-        window.filterMaterial = function(event) {
-
-            // Se activa solo al presionar ENTER
-
-            if (event.key !== 'Enter') return; 
-
-
-
-            const searchId = document.getElementById('search-input').value.trim().toUpperCase();
-
-            
-
-            if (!searchId) {
-
-                clearActiveMarker();
-
-                return;
-
-            }
-
-            updateActiveMarker(searchId);
-
-        }
-
-
-        // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR (CORREGIDA)
-
-        function updateActiveMarker(searchId) {
-
-            // Busca el material usando las claves limpias del Apps Script
-
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
-               if (durationInfoWindow) { // Sólo se referencia, no se declara
-        durationInfoWindow.close();
-        durationInfoWindow = null; 
-            }
-            // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
-
-            clearActiveMarker(); 
-
-            document.getElementById('material-details').style.display = 'none'; // Oculta ficha anterior
-
-            if (material && material.LATITUD && material.LONGITUD) {
-
-                activeMarkerId = searchId; // Establece el ID activo
-
-                
-                    const position = { 
-                    lat: parseFloat(material.LATITUD), 
-                    lng: parseFloat(material.LONGITUD) 
-
-                };
-                        const arrivalDateStr = material.FECHA_ACTUALIZACION; // Fecha de Posición #3
-                        let durationLabel = '';
-                        let daysElapsed = 0;
-                        
-                        if (arrivalDateStr && arrivalDateStr !== 'N/A') {
-                            // Reutiliza la función global
-                            daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
-                            
-                            if (daysElapsed > 0) {
-                                durationLabel = `${daysElapsed} DÍAS`;
-                            }
-                        }
-
-                // -------------------------------------------------------------
-
-                // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
-
-                // -------------------------------------------------------------
-
-                const contentString = `
-
-                    <div style="font-family: Arial, sans-serif; max-width: 300px;">
-
-                        <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
-                        <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-                        <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>      
-                        <hr style="border-top: 1px solid #eee; margin: 8px 0;">
-                        <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-                        <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
-                        <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
-                        <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
-                        <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
-                    </div>`;
-
-                // Crea el nuevo marcador 
-
-                activeMarker = new google.maps.Marker({
-
-                    position: position,
-
-                    map: map,
-
-                    title: material.ID_MATERIAL,
-
-                    icon: {
-
-                        path: google.maps.SymbolPath.CIRCLE,
-
-                        scale: 10,
-
-                        fillColor: '#FF0000',
-
-                        fillOpacity: 0.9,
-
-                        strokeWeight: 0,
-
-                    }
-
-                });
-
-
-
-                // *** INICIA EL EFECTO DE PARPADEO (3 segundos) ***
-
-                startBlinking(activeMarker, 3000); 
-
-                
-
-                // Centra el mapa en la nueva posición y establece un zoom adecuado
-
-                map.setCenter(position);
-
-                map.setZoom(15); 
-
-                // Añade la información en un infowindow
-
-                const infoWindow = new google.maps.InfoWindow({
-
-                    content: contentString
-
-                });
-
-
-
-                activeMarker.addListener('click', () => {
-
-                    infoWindow.open(map, activeMarker);
-
-                });
-
-
-
-                // CRÍTICO: Llamada para mostrar la ficha de datos
-
-                displayMaterialDetails(searchId); 
-
-                
-
-                // CRÍTICO: Llamada para actualizar el contador de días
-
-                updateDayCounter(material.FECHA_ACTUALIZACION, position);
-
-
-
-                // Asumiendo que el material tiene un historial (HISTORY)
-
-                if (material.HISTORY && material.HISTORY.length > 0) {
-
-                    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
-
-                } else {
-
-                    clearHistoryTracking();
-
+                // Si ya hay un material activo, actualiza solo ese marcador
+                if (activeMarkerId) {
+                    updateActiveMarker(activeMarkerId);
                 }
-
-
-
-                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado y en seguimiento activo.`;
-
-
 
             } else {
-
-                document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
-
+                console.error("Error del Endpoint:", data.message);
+                document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
             }
 
-        }
-
-
-
-
-
-        // 6. FUNCIÓN PARA INICIAR EL PARPADEO (3 segundos por ciclo)
-
-        function startBlinking(marker, interval) {
-
-            if (blinkInterval) {
-
-                clearInterval(blinkInterval);
-
-            }
-
-            
-
-            let isVisible = true;
-
-            
-
-            blinkInterval = setInterval(() => {
-
-                const icon = marker.getIcon();
-
-                icon.fillOpacity = isVisible ? 0.2 : 0.9; 
-
-                marker.setIcon(icon);
-
-                isVisible = !isVisible; 
-
-            }, interval / 2); 
-
-        }
-
-        // 7. CÁLCULO DE DIFERENCIA DE DÍAS (CRÍTICO)
-                    function getValidDate(dateStrOrObj) {
-                if (!dateStrOrObj) return null;
-
-                if (dateStrOrObj instanceof Date) {
-                    return dateStrOrObj;
-                }
-
-                let dateStr = String(dateStrOrObj).trim();
-
-                // 1. Manejar el formato Z (UTC) como Fecha Local, evitando el problema del "día anterior"
-                if (dateStr.endsWith('Z') || dateStr.includes('T')) {
-                    // Creamos la fecha y luego la "limpiamos" para que use la medianoche local.
-                    const d = new Date(dateStr);
-                    if (isNaN(d.getTime())) return null;
-
-                    // CRÍTICO: Creamos una nueva fecha a partir de los componentes UTC para anular el offset de zona
-                    // Ejemplo: Si 2025-10-10T05:00:00.000Z se convierte a 2025-10-09 22:00:00 (hora local), 
-                    // usamos 2025, 9 (octubre), 10.
-                    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-                }
-
-                // 2. Manejar formatos locales como 'dd/mm/yyyy' (si se usan)
-                if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-                    const parts = dateStr.split('/');
-                    // Nota: Month is 0-indexed in JS (January is 0)
-                    const d = new Date(parts[2], parts[1] - 1, parts[0]); 
-                    if (isNaN(d.getTime())) return null;
-                    return d;
-                }
-                
-                // 3. Formato estándar (e.g., yyyy-mm-dd)
-                const d = new Date(dateStr);
-                if (isNaN(d.getTime())) return null;
-                return d;
-            }
-          // Ahora, ajustamos calculateDaysDifference para que use la función de limpieza
-            function calculateDaysDifference(startDateStr, endDateStr) {
-                // Usamos la función de limpieza para convertir ambas fechas a medianoche del día.
-                const startDate = getValidDate(startDateStr);
-                const endDate = getValidDate(endDateStr);
-                const oneDay = 24 * 60 * 60 * 1000;
-            
-                if (!startDate || !endDate || startDate.getTime() > endDate.getTime()) {
-                    return 0; 
-                }
-            
-                const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                const days = Math.round(diffTime / oneDay);
-                return days;
-                // El redondeo es crucial para evitar errores de huso horario.
-            }
-            //              
-
-        // 9. FUNCIÓN DE LIMPIEZA DEL MAPA HISTÓRICO
-
-        function clearHistoryTracking() {
-
-            // Elimina los marcadores históricos del mapa
-
-            historyMarkers.forEach(marker => marker.setMap(null));
-
-            historyMarkers = [];
-
-            
-
-            // Elimina la polilínea del mapa
-
-            if (polyline) {
-
-                polyline.setMap(null);
-
-                polyline = null;
-
-            }
-
-             document.getElementById('history-map').style.display = 'none';
-            isHistoryMapManualZoom = false;
-        }
-
-
-
-        // 6. LÓGICA DE TRACKING HISTÓRICO
-
-           function plotHistoricalTracking(historyData, materialId) {
-                // ----------------------------------------------------------------------------------
-                // NOTA: Se ha reintroducido la lógica de formateo y cálculo de duración, 
-                // pero los mostradores solo usarán la FECHA DE ARRIBO, como se indica.
-                // ----------------------------------------------------------------------------------
-            
-                clearHistoryTracking(); 
-                document.getElementById('history-map').style.display = 'block'; // <--- CRÍTICO: Hacer visible el mapa histórico
-                const pathCoordinates = [];
-                const bounds = new google.maps.LatLngBounds();
-                const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
-                
-                // La fecha del último punto (posición actual) es la fecha de la última actualización en la hoja
-                const lastUpdateDateStr = material.FECHA_ACTUALIZACION; 
-            
-                historyData.forEach((point, index) => {
-                    const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
-                    pathCoordinates.push(position);
-                    bounds.extend(position);
-                    
-                    // ** 1. LÓGICA DE FECHAS Y DURACIÓN (Mantenida por si se requiere, pero solo se usa ARRIVAL)**
-                    let durationDays = 0;
-                    let departureStr = point.departure; 
-                    const nextPoint = historyData[index + 1]; 
-            
-                    // 1a. Determinar Fecha de Salida (Look-Ahead)
-                    if (nextPoint && nextPoint.arrival) {
-                        departureStr = nextPoint.arrival; 
-                    } else if (index === historyData.length - 1) {
-                        // Si es el ÚLTIMO punto, la salida es la fecha de la última actualización de la hoja.
-                        departureStr = lastUpdateDateStr; 
-                    }
-                    
-                    // 1b. Formateo de Fecha de Arribo (Crucial para el Label/InfoWindow)
-                    const arrivalDateObj = getValidDate(point.arrival);
-                    const arrivalFormatted = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'Fecha N/A';
-                    
-                    // 1c. Calcular duración (solo para el InfoWindow, si se quiere mostrar)
-                    if (point.arrival && departureStr) {
-                        durationDays = calculateDaysDifference(point.arrival, departureStr);
-                    }
-            
-                    // Si es el ÚLTIMO PUNTO (posición actual), no creamos marcador histórico duplicado.
-                    if (index === historyData.length - 1) {
-                      // ... (Código para el marcador de Posición Actual - MANTENIDO SIN CAMBIOS)
-            const currentContent = `
-                <div style="font-size: 0.9em;">
-                    <strong>POSICIÓN ACTUAL (#${index + 1})</strong><br>
-                    Arribo Histórico: ${arrivalFormatted}<br>
-                    <span style="font-weight: bold; color: green;">En curso desde hace: ${durationDays} días</span>
-                </div>
-            `;
-            const currentMarker = new google.maps.Marker({
-                position: position,
-                map: historyMap,
-                title: `POSICIÓN ACTUAL: ${arrivalFormatted}`,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 8,
-                    fillColor: '#FF0000', // Rojo
-                    fillOpacity: 0.9,
-                    strokeWeight: 1,
-                    strokeColor: '#000000'
-                }
-            });
-            historyMarkers.push(currentMarker);
-            const currentInfoWindow = new google.maps.InfoWindow({ content: currentContent });
-            currentMarker.addListener('click', () => { currentInfoWindow.open(historyMap, currentMarker); });
-
-            return;
-                    }
-                    
-                    // ** 2. CREACIÓN DEL MARCADOR HISTÓRICO CON LA FECHA DE ARRIBO EN LA ETIQUETA **
-                    const infoContent = `
-                                <div style="font-size: 0.9em;">
-                                    <strong>Punto Histórico #${index + 1}</strong><br>
-                                    Fecha de Arribo: <strong>${arrivalFormatted}</strong><br>
-                                    Duración: ${durationDays} días
-                                </div>
-                            `;
-            
-                    // Marcador Histórico (Azul) - Se usa la propiedad 'label' para mostrar la fecha
-                const marker = new google.maps.Marker({
-                            position: position,
-                            map: historyMap,
-                            title: `Punto #${index + 1}: ${arrivalFormatted}`,
-                            label: {
-                                text: arrivalFormatted,          // La fecha formateada
-                                fontSize: '14px',                // <-- Aumenta el tamaño de la fuente
-                                fontWeight: 'bold',              // Se mantiene en negrita
-                                color: '#000000',                // <-- Color de texto negro (alto contraste)
-                                className: 'map-label-background' // <-- CLASE CSS para fondo o stroke
-                            },
-                            // CRÍTICO: Ajusta el origen de la etiqueta para que esté por encima del punto
-                            labelOrigin: new google.maps.Point(0, -15), // Desplaza la etiqueta 15px hacia arriba
-                            icon: {
-                                path: google.maps.SymbolPath.CIRCLE,
-                                scale: 6,
-                                fillColor: '#0000FF',
-                                fillOpacity: 0.8,
-                                strokeWeight: 1,
-                                strokeColor: '#0000CC'
-                            }
-                    });
-
-
-                    historyMarkers.push(marker);
-                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
-                    marker.addListener('click', () => { infoWindow.open(historyMap, marker); });
-
-                }); // Fin del forEach
-            
-                // Dibuja la polilínea (Mantenido)
-                polyline = new google.maps.Polyline({
-                    path: pathCoordinates,
-                    geodesic: true,
-                    strokeColor: '#0000FF',
-                    strokeOpacity: 0.8,
-                    strokeWeight: 2,
-                    map: historyMap
-                });
-            
-                // Ajusta el zoom del mapa histórico (Mantenido)
-               if (!isHistoryMapManualZoom && !bounds.isEmpty()) {
-                historyMap.fitBounds(bounds);
-                }
-               
-            }
-                 
-
-        
-        // fin de plothisotricatracngikg
-
-        
-
-        // 8. LÓGICA DEL CONTADOR DE DÍAS (SUPERPUESTO)
-
-        function updateDayCounter(lastUpdateStr, position) {
-            // Aseguramos que tenemos un material activo y una posición
-            if (!activeMarkerId) {
-                document.getElementById('day-counter-overlay').style.display = 'none';
-                return;
-            }
-        
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === activeMarkerId.toUpperCase());
-            // CRÍTICO: Usamos FECHA_ACTUALIZACION del material, ya que Apps Script la actualiza.
-            const arrivalDateStr = material.FECHA_ACTUALIZACION;
-            if (!arrivalDateStr || arrivalDateStr === 'N/A') { 
-                    document.getElementById('day-counter-overlay').style.display = 'none';
-                    return;
-                }
-            
-                const daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
-                const counterDiv = document.getElementById('day-counter-overlay');
-                
-                if (daysElapsed === 'N/A' || daysElapsed <= 0) { // Ahora debe ser daysElapsed <= 0 (si es 5 es > 0)
-                    counterDiv.style.display = 'none';
-                    return;
-                }
-                        
-            // CRÍTICO: El último punto del historial es la posición actual.
-            // La fecha de arribo de ese punto es la fecha de la hoja (que es la última vez que se movió)
-                    counterDiv.innerText = `${daysElapsed} días`;
-                    counterDiv.style.display = 'block';
-
-            }
-
-            
-
-        function clearActiveMarker() {
-
-            if (activeMarker) {
-
-                activeMarker.setMap(null);
-
-                activeMarker = null;
-
-                activeMarkerId = null;
-
-            }
-
-            if (blinkInterval) {
-
-                clearInterval(blinkInterval);
-
-                blinkInterval = null;
-
-            }
-
-            document.getElementById('material-details').style.display = 'none'; // Oculta la ficha
-
-            document.getElementById('day-counter-overlay').style.display = 'none'; // Oculta el contador
-
-            clearHistoryTracking(); // <--- CRÍTICO: Limpiar también el mapa de historial
-
-            
-
-            // CORRECTED: Reestablecer el mensaje de estado (SOLUCIÓN AL ERROR DE 'INICIANDO')
-
-            if (initialLoad === false) { // Solo si ya cargó datos
-
-                document.getElementById('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.'; 
-
-            }
-
-        }
-
-        
-
-        // 8. FUNCIÓN DE BUCLE DE ACTUALIZACIÓN
-
-        function startDataRefresh() {
-
-            fetchMaterialData(); 
-
-            setInterval(fetchMaterialData, 5000); 
-
-        }
-
-
-        // ==========================================================
-
-        // ** FUNCIONES PARA BÚSQUEDA POR DICCIONARIO (MEJORA 2) **
-
-        // ==========================================================
-
-
-
-        /**
-
-         * Filtra los materiales basándose en el campo seleccionado y el término de búsqueda.
-
-         * Se dispara con oninput.
-
-         */
-
-        function filterDictionary(searchTerm) {
-
-            const selector = document.getElementById('search-selector');
-
-            const searchField = selector.value;
-
-            const resultsContainer = document.getElementById('dictionary-results');
-
-            const resultsList = document.getElementById('results-list');
-
-            
-
-            if (searchTerm.length < 2) {
-
-                resultsContainer.style.display = 'none';
-
-                return;
-
-            }
-
-
-
-            const lowerCaseSearch = searchTerm.toLowerCase();
-
-
-
-            const filtered = allMaterials.filter(material => {
-
-                // Aseguramos que el material y el campo existan antes de llamar a toString()
-
-                const value = (material && material[searchField] || '').toString().toLowerCase();
-
-                return value.includes(lowerCaseSearch);
-
-            });
-
-
-
-            resultsList.innerHTML = '';
-
-
-
-            if (filtered.length > 0) {
-
-                resultsContainer.style.display = 'block';
-
-                
-
-                // Limita los resultados a los primeros 10
-
-                filtered.slice(0, 10).forEach(material => {
-
-                    const li = document.createElement('li');
-
-                    const materialId = material.ID_MATERIAL;
-
-                    // Muestra el valor del campo buscado (ej: el nombre del plano o la descripción)
-
-                    const displayValue = material[searchField] || 'N/A'; 
-
-                    
-
-                    li.innerHTML = `
-
-                        <a href="#" onclick="selectMaterialFromList('${materialId}'); return false;" style="color: #007bff; text-decoration: none;">
-
-                            <strong>ID ${materialId}</strong>
-
-                        </a>: ${displayValue}
-
-                    `;
-
-                    resultsList.appendChild(li);
-
-                });
-
-            } else {
-
-                resultsContainer.style.display = 'none';
-
-            }
-
-        }
-
-        window.selectMaterialFromList = function(materialId) {
-
-            const searchInput = document.getElementById('search-input');
-            document.getElementById('dictionary-results').style.display = 'none';
-            searchInput.value = ''; // Limpiamos la caja de búsqueda (opcional)
-            updateActiveMarker(materialId);
-        }
-
-                            // LÍNEA 994: Función displayMaterialDetails (CORREGIDA)
-function displayMaterialDetails(materialId) {
-    const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
-    const detailsDiv = document.getElementById('material-details');
-
-    if (!material) {
-        detailsDiv.style.display = 'none';
-        return;
-    }
-
-    detailsDiv.style.display = 'block';
-    let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
-
-    // ... (Sección de Ficha de Datos - Mantenida)
-    const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION'];
-    keysOrder.forEach(key => {
-        let value = material[key] || 'N/A';
-        if (value === 'N/A' && !material.hasOwnProperty(key)) return;
-        const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
-
-        htmlContent += `
-            <div class="detail-row">
-                <strong>${displayKey}:</strong> ${value}
-            </div>
-        `;
-    });
-    // ... (Fin de la ficha de datos)
-
-    // CRÍTICO: Lógica de Historial (Solo Puntos 1, 2, 3 y Posición Actual)
-    let historyPoints = material.HISTORY || [];
-    historyPoints = historyPoints.filter(p => p && p.arrival && p.arrival !== 'N/A');
-    
-    // Filtramos para evitar el punto fantasma #4
-    const finalPoints = [];
-    for (let i = 0; i < historyPoints.length; i++) {
-        const currentPoint = historyPoints[i];
-        if (currentPoint.lat && currentPoint.lng && currentPoint.arrival) {
-             finalPoints.push(currentPoint);
+        } catch (error) {
+            console.error('Error de conexión con Apps Script:', error);
+            document.getElementById('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
         }
     }
+
+
+    // 4. LÓGICA DE BÚ
     
-    // Tomamos el último punto válido (FECHA_3)
-    const lastValidPoint = finalPoints.length > 0 ? finalPoints[finalPoints.length - 1] : { arrival: material.FECHA_3 || 'N/A' };
-    
-    htmlContent += `<h4 style="margin-top: 15px;">Historial de Movimientos (${finalPoints.length + 1})</h4>`;
 
-    // --- Bucle de visualización (Puntos Históricos #1, #2, #3) ---
-    for (let index = 0; index < finalPoints.length; index++) {
-        const point = finalPoints[index];
-        let arrival = point.arrival || 'N/A';
-        
-        // 1. Formato de Fecha (Usando la función corregida getValidDate)
-        const arrivalDateObj = getValidDate(arrival);
-        arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'N/A';
-        
-        // 2. Construcción HTML (SOLO ÍNDICE Y FECHA DE ARRIBO)
-        // Se elimina la lógica de Salida y el divisor '/'
-        htmlContent += `
-            <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid #ccc; padding-left: 5px;">
-                <strong>#${index + 1}</strong>: ${arrival}
-            </div>
-        `;
-    }
-
-    // --- PUNTO #4 (ÚLTIMO): POSICIÓN ACTUAL ---
-    
-    // [CRÍTICO] Fecha de hoy
-    const today = new Date();
-    const todayFormatted = today.toLocaleDateString('es-PE');
-
-    // 2. Construcción HTML del Punto Actual
-    // Mantiene el divisor para el texto "En Curso"
-    htmlContent += `
-        <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid #ff0000; padding-left: 5px;">
-            <strong>#${finalPoints.length + 1} (Actual)</strong>: ${todayFormatted} / En Curso
-        </div>
-    `;
-
-    detailsDiv.innerHTML = htmlContent;
-} // <-- CIERRE CORRECTO DE displayMaterialDetails
-
-        
-        loadGoogleMapsScript();
-
-    </script>
 
 
 
