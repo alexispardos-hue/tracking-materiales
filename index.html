@@ -221,11 +221,17 @@
             border-bottom: 1px dotted #eee;
         }
         .map-label-background {
-        background-color: rgba(255, 255, 255, 0.7); /* Fondo blanco semitransparente */
-        padding: 2px 5px; /* Espaciado alrededor del texto */
-        border-radius: 3px; /* Bordes redondeados */
-        border: 1px solid #333; /* Borde oscuro para mejor contraste */
-        box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.3); /* Sombra para dar profundidad */
+        /* Fondo blanco casi opaco para el contraste */
+            background-color: rgba(255, 255, 255, 0.95) !important; 
+            padding: 3px 6px !important; 
+            border-radius: 4px !important; 
+            border: 1px solid #333 !important; 
+            /* Sombra para que destaque del mapa */
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4) !important; 
+            /* Esto es crucial para forzar la visibilidad */
+            z-index: 100 !important; 
+            position: relative !important;
+            white-space: nowrap; /* Evita que el texto se rompa */
         }
         
 
@@ -576,18 +582,27 @@ function updateActiveMarker(searchId) {
     </div>
   `;
 
-  activeMarker = new google.maps.Marker({
-    position,
-    map,
-    title: `Material: ${material.ID_MATERIAL}`,
-    label: { text: durationText, fontSize: '12px', fontWeight: 'bold', className: 'map-label-background' },
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 9,
-      fillColor: '#FF0000',
-      fillOpacity: 1,
-      strokeWeight: 1,
-      strokeColor: '#cc0000'
+activeMarker = new google.maps.Marker({
+    position,
+    map,
+    title: `Material: ${material.ID_MATERIAL}`,
+    // ETIQUETA DE DURACIÓN: CRÍTICO PARA VISIBILIDAD
+    label: { 
+        text: durationText, 
+        fontSize: '14px', 
+        fontWeight: 'bold', 
+        color: '#000000',
+        className: 'map-label-background' // Usa la clase CSS de contraste
+    },
+    labelOrigin: new google.maps.Point(0, -15), // <-- CRÍTICO: ELEVA LA ETIQUETA DEL MARCADOR
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 9,
+      fillColor: '#FF0000',
+      fillOpacity: 1,
+      strokeWeight: 1,
+      strokeColor: '#cc0000'
+        
     }
   });
 
