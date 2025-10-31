@@ -1141,20 +1141,18 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
         function displayMaterialDetails(materialId) {
 
+                const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+                const detailsDiv = document.getElementById('material-details');
+    
+                if (!material) {
+                    detailsDiv.style.display = 'none';
+                    return;
+                }
 
-            
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
-            const detailsDiv = document.getElementById('material-details');
-
-            if (!material) {
-                detailsDiv.style.display = 'none';
-                return;
-            }
-
-            detailsDiv.style.display = 'block';
-            let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
-
-            // Iteramos sobre las claves para mostrarlas ordenadamente
+                detailsDiv.style.display = 'block';
+                let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
+    
+                // Iteramos sobre las claves para mostrarlas ordenadamente
 
             const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION']; // CRÍTICO: Agregamos FECHA_ACTUALIZACION
 
@@ -1245,7 +1243,7 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
         </div>
                 `;
             });
-            }
+            
             
             // Finalmente, actualiza el contenido y cierra la función
             detailsDiv.innerHTML = htmlContent;
@@ -1257,9 +1255,5 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
         loadGoogleMapsScript();
 
     </script>
-
-
-
 </body>
-
 </html>
