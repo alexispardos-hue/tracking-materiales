@@ -218,10 +218,16 @@
         #results-list li {
 
             padding: 4px 0;
-
             border-bottom: 1px dotted #eee;
-
         }
+        .map-label-background {
+        background-color: rgba(255, 255, 255, 0.7); /* Fondo blanco semitransparente */
+        padding: 2px 5px; /* Espaciado alrededor del texto */
+        border-radius: 3px; /* Bordes redondeados */
+        border: 1px solid #333; /* Borde oscuro para mejor contraste */
+        box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.3); /* Sombra para dar profundidad */
+        }
+        
 
     </style>
 
@@ -809,69 +815,72 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
             
                     // Si es el ÚLTIMO PUNTO (posición actual), no creamos marcador histórico duplicado.
                     if (index === historyData.length - 1) {
-                        // Marcador especial para el punto actual (posiblemente un ícono distinto, opcional)
-                        const currentContent = `
-                            <div style="font-size: 0.9em;">
-                                <strong>POSICIÓN ACTUAL (#${index + 1})</strong><br>
-                                Arribo Histórico: ${arrivalFormatted}<br>
-                                <span style="font-weight: bold; color: green;">En curso desde hace: ${durationDays} días</span>
-                            </div>
-                        `;
-                        // Crear el marcador del punto actual si se desea diferenciarlo en el mapa histórico.
-                        const currentMarker = new google.maps.Marker({
-                            position: position,
-                            map: historyMap,
-                            title: `POSICIÓN ACTUAL: ${arrivalFormatted}`,
-                            icon: {
-                                path: google.maps.SymbolPath.CIRCLE,
-                                scale: 8,
-                                fillColor: '#FF0000', // Rojo
-                                fillOpacity: 0.9,
-                                strokeWeight: 1,
-                                strokeColor: '#000000'
-                            }
-                        });
-                        historyMarkers.push(currentMarker);
-                        const currentInfoWindow = new google.maps.InfoWindow({ content: currentContent });
-                        currentMarker.addListener('click', () => { currentInfoWindow.open(historyMap, currentMarker); });
-            
-                        return; 
+                      // ... (Código para el marcador de Posición Actual - MANTENIDO SIN CAMBIOS)
+            const currentContent = `
+                <div style="font-size: 0.9em;">
+                    <strong>POSICIÓN ACTUAL (#${index + 1})</strong><br>
+                    Arribo Histórico: ${arrivalFormatted}<br>
+                    <span style="font-weight: bold; color: green;">En curso desde hace: ${durationDays} días</span>
+                </div>
+            `;
+            const currentMarker = new google.maps.Marker({
+                position: position,
+                map: historyMap,
+                title: `POSICIÓN ACTUAL: ${arrivalFormatted}`,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: '#FF0000', // Rojo
+                    fillOpacity: 0.9,
+                    strokeWeight: 1,
+                    strokeColor: '#000000'
+                }
+            });
+            historyMarkers.push(currentMarker);
+            const currentInfoWindow = new google.maps.InfoWindow({ content: currentContent });
+            currentMarker.addListener('click', () => { currentInfoWindow.open(historyMap, currentMarker); });
+
+            return;
                     }
                     
                     // ** 2. CREACIÓN DEL MARCADOR HISTÓRICO CON LA FECHA DE ARRIBO EN LA ETIQUETA **
                     const infoContent = `
-                        <div style="font-size: 0.9em;">
-                            <strong>Punto Histórico #${index + 1}</strong><br>
-                            Fecha de Arribo: <strong>${arrivalFormatted}</strong><br>
-                            Duración: ${durationDays} días
-                        </div>
-                    `;
+                                <div style="font-size: 0.9em;">
+                                    <strong>Punto Histórico #${index + 1}</strong><br>
+                                    Fecha de Arribo: <strong>${arrivalFormatted}</strong><br>
+                                    Duración: ${durationDays} días
+                                </div>
+                            `;
             
                     // Marcador Histórico (Azul) - Se usa la propiedad 'label' para mostrar la fecha
-                    const marker = new google.maps.Marker({
-                        position: position,
-                        map: historyMap,
-                        title: `Punto #${index + 1}: ${arrivalFormatted}`,
-                        // CRÍTICO: Aquí inyectamos la fecha formateada
-                        label: {
-                            text: arrivalFormatted, // Muestra la fecha como texto sobre el marcador
-                            fontWeight: 'bold',
-                            color: '#000000' // Color de la fuente
-                        },
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            scale: 6,
-                            fillColor: '#0000FF',
-                            fillOpacity: 0.8,
-                            strokeWeight: 1,
-                            strokeColor: '#0000CC'
-                        }
+                const marker = new google.maps.Marker({
+                            position: position,
+                            map: historyMap,
+                            title: `Punto #${index + 1}: ${arrivalFormatted}`,
+                            label: {
+                                text: arrivalFormatted,          // La fecha formateada
+                                fontSize: '14px',                // <-- Aumenta el tamaño de la fuente
+                                fontWeight: 'bold',              // Se mantiene en negrita
+                                color: '#000000',                // <-- Color de texto negro (alto contraste)
+                                className: 'map-label-background' // <-- CLASE CSS para fondo o stroke
+                            },
+                            // CRÍTICO: Ajusta el origen de la etiqueta para que esté por encima del punto
+                            labelOrigin: new google.maps.Point(0, -15), // Desplaza la etiqueta 15px hacia arriba
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 6,
+                                fillColor: '#0000FF',
+                                fillOpacity: 0.8,
+                                strokeWeight: 1,
+                                strokeColor: '#0000CC'
+                            }
                     });
-                    
+
+
                     historyMarkers.push(marker);
-            
                     const infoWindow = new google.maps.InfoWindow({ content: infoContent });
                     marker.addListener('click', () => { infoWindow.open(historyMap, marker); });
+
                 }); // Fin del forEach
             
                 // Dibuja la polilínea (Mantenido)
