@@ -107,37 +107,24 @@
 
         #day-counter-overlay {
 
+        /* CRÍTICO: Debe ser absoluto y tener un z-index alto */
             position: absolute;
-
-            top: 50%;
-
-            left: 50%;
-
-            transform: translate(-50%, -50%);
-
-            z-index: 10;
-
-            font-size: 2.5em; /* Número grande */
-
-            font-weight: bold;
-
-            color: #ff0000;
-
-            background-color: rgba(255, 255, 255, 0.7);
-
-            border: 3px solid #ff0000;
-
-            padding: 10px 20px;
-
+            z-index: 1000; 
+            
+            /* Diseño del Cuadro Grande */
+            background-color: #333; /* Fondo oscuro */
+            color: #FFF; /* Texto blanco */
+            border: 3px solid #FFC107; /* Borde amarillo para resaltar */
+            padding: 8px 12px;
             border-radius: 8px;
-
-            pointer-events: none;
-
+            font-size: 20px; /* Tamaño de fuente grande */
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            
+            /* Inicialmente oculto */
             display: none;
-
-            text-shadow: 1px 1px 2px white;
-
-        }
+                }
 
             
 
@@ -314,8 +301,11 @@
 
             <div id="current-map-wrapper">
 
-                <div id="current-map" class="map-view"></div>
-
+                <div id="current-map" class="map-view" style="width: 100%; height: 500px; position: relative;">
+                <div id="day-counter-overlay"></div>
+                    
+                </div>
+                
                 <div id="day-counter-overlay"></div>
 
             </div>
@@ -542,103 +532,89 @@ function startBlinking(marker, intervalMs = 3000) {
 }
 
 function updateActiveMarker(searchId) {
-  if (!searchId) {
-    clearActiveMarker();
-    return;
-  }
-  const idUpper = String(searchId).toUpperCase();
-  const material = allMaterials.find(item => item && item.ID_MATERIAL && String(item.ID_MATERIAL).toUpperCase() === idUpper);
+    if (!searchId) {
+        clearActiveMarker();
+        return;
+    }
+    const idUpper = String(searchId).toUpperCase();
+    const material = allMaterials.find(item => item && item.ID_MATERIAL && String(item.ID_MATERIAL).toUpperCase() === idUpper);
 
-  clearActiveMarker(); // siempre limpiar primero
-  $('material-details').style.display = 'none';
+    clearActiveMarker(); // siempre limpiar primero
+    $('material-details').style.display = 'none';
 
-  if (!material || !material.LATITUD || !material.LONGITUD) {
-    $('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
-    return;
-  }
+    if (!material || !material.LATITUD || !material.LONGITUD) {
+        $('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
+        return;
+    }
 
-  activeMarkerId = idUpper;
-  const position = { lat: safeParseFloat(material.LATITUD), lng: safeParseFloat(material.LONGITUD) };
+    activeMarkerId = idUpper;
+    const position = { lat: safeParseFloat(material.LATITUD), lng: safeParseFloat(material.LONGITUD) };
 
-  // --- LÓGICA CRÍTICA DE CÁLCULO DE DURACIÓN (Punto 3) ---
-  const todayDate = new Date();
-  // Filtramos los puntos de historial que sí tienen fecha/coordenadas
-  const validHistoryPoints = Array.isArray(material.HISTORY) 
-    ? material.HISTORY.filter(p => p && p.lat && p.lng && p.arrival && p.arrival !== 'N/A')
-    : [];
-  
-  // La fecha de referencia es la fecha de llegada del ÚLTIMO punto de historial válido
-  let lastTrackingDateStr = material.FECHA_ACTUALIZACION; // Fallback
-  if (validHistoryPoints.length > 0) {
-    lastTrackingDateStr = validHistoryPoints[validHistoryPoints.length - 1].arrival;
-  }
-  
-  let daysElapsed = 0;
-  let durationText = 'HOY';
-  
-  if (lastTrackingDateStr && lastTrackingDateStr !== 'N/A') {
-    daysElapsed = calculateDaysDifference(lastTrackingDateStr, todayDate);
-    if (daysElapsed > 0) durationText = `${daysElapsed} DÍAS`;
-  }
-
-  const contentString = `
-    <div style="font-family: Arial, sans-serif; max-width: 320px;">
-      <h4 style="margin:0;color:#1a73e8;">Material: ${material.ID_MATERIAL}</h4>
-      <p><strong>Estado:</strong> ${material.ESTADO || 'N/A'}</p>
-      <p><strong>Permanencia:</strong> ${durationText}</p>
-      <hr style="border-top:1px solid #eee;margin:8px 0;">
-      <p><strong>Desc:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-      <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-      <p style="font-size:0.8em;color:#777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
-    </div>
-  `;
-
-    // --- CRÍTICO: USO DE SVG DINÁMICO PARA DIBUJAR PUNTO Y ETIQUETA (Punto 1) ---
-    // Esto asegura que el círculo rojo SIEMPRE se muestre y la etiqueta se vea encima.
-    const iconBase64 = `data:image/svg+xml;charset=UTF-8,` + encodeURIComponent(`
-        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="15" cy="15" r="9" fill="#FF0000" stroke="#cc0000" stroke-width="1.5" fill-opacity="1"/>
-            
-            <rect x="5" y="-18" rx="4" ry="4" width="20" height="18" fill="rgba(255, 255, 255, 0.95)" stroke="#333" stroke-width="0.5"/>
-            
-            <text x="15" y="-4" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000" text-anchor="middle">
-                ${durationText}
-            </text>
-        </svg>
-    `);
+    // --- LÓGICA CRÍTICA DE CÁLCULO DE DURACIÓN ---
+    const todayDate = new Date();
+    const validHistoryPoints = Array.isArray(material.HISTORY) 
+        ? material.HISTORY.filter(p => p && p.lat && p.lng && p.arrival && p.arrival !== 'N/A')
+        : [];
     
-    // El marcador utiliza el ícono SVG que hemos creado
+    let lastTrackingDateStr = material.FECHA_ACTUALIZACION; 
+    if (validHistoryPoints.length > 0) {
+        lastTrackingDateStr = validHistoryPoints[validHistoryPoints.length - 1].arrival;
+    }
+    
+    let daysElapsed = 0;
+    let durationText = 'HOY';
+    
+    if (lastTrackingDateStr && lastTrackingDateStr !== 'N/A') {
+        daysElapsed = calculateDaysDifference(lastTrackingDateStr, todayDate);
+        if (daysElapsed > 0) durationText = `${daysElapsed} DÍAS`;
+    }
+
+    const contentString = `
+      <div style="font-family: Arial, sans-serif; max-width: 320px;">
+        <h4 style="margin:0;color:#1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+        <p><strong>Estado:</strong> ${material.ESTADO || 'N/A'}</p>
+        <p><strong>Permanencia:</strong> ${durationText}</p>
+        <hr style="border-top:1px solid #eee;margin:8px 0;">
+        <p><strong>Desc:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+        <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+        <p style="font-size:0.8em;color:#777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+      </div>
+    `;
+
+    // --- Marcador de círculo rojo simple (sin etiqueta interna SVG) ---
     activeMarker = new google.maps.Marker({
         position,
         map,
         title: `Material: ${material.ID_MATERIAL}`,
         icon: {
-            url: iconBase64,
-            scaledSize: new google.maps.Size(30, 30),
-            // Ancla el ícono en la base del círculo (centro del SVG 15,15)
-            anchor: new google.maps.Point(15, 15) 
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9, // Tamaño del círculo rojo
+            fillColor: '#FF0000',
+            fillOpacity: 1,
+            strokeWeight: 1.5,
+            strokeColor: '#cc0000'
         }
     });
 
-  const infow = new google.maps.InfoWindow({ content: contentString });
-  activeMarker.addListener('click', () => infow.open(map, activeMarker));
+    const infow = new google.maps.InfoWindow({ content: contentString });
+    activeMarker.addListener('click', () => infow.open(map, activeMarker));
 
-  startBlinking(activeMarker, 3000);
-  map.setCenter(position);
-  map.setZoom(15);
+    startBlinking(activeMarker, 3000);
+    map.setCenter(position);
+    map.setZoom(15);
 
-  // mostrar ficha y contador
-  displayMaterialDetails(material.ID_MATERIAL);
-  updateDayCounter(material.FECHA_ACTUALIZACION, position);
+    // mostrar ficha y ACTIVAR EL OVERLAY (etiqueta grande)
+    displayMaterialDetails(material.ID_MATERIAL);
+    updateDayCounter(lastTrackingDateStr, position, daysElapsed); // <--- Se envía daysElapsed
+    
+    // historial
+    if (Array.isArray(material.HISTORY) && material.HISTORY.length > 0) {
+        plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
+    } else {
+        clearHistoryTracking();
+    }
 
-  // historial
-  if (Array.isArray(material.HISTORY) && material.HISTORY.length > 0) {
-    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
-  } else {
-    clearHistoryTracking();
-  }
-
-  $('status-message').innerText = `Estado: Material ${material.ID_MATERIAL} ubicado y en seguimiento activo.`;
+    $('status-message').innerText = `Estado: Material ${material.ID_MATERIAL} ubicado y en seguimiento activo.`;
 }
 
 // -------------------------
@@ -749,21 +725,52 @@ function plotHistoricalTracking(historyData, materialId) {
 // -------------------------
 // Day counter overlay
 // -------------------------
-function updateDayCounter(lastUpdateStr, position) {
-  const overlay = $('day-counter-overlay');
-  if (!activeMarkerId || !lastUpdateStr) {
-    overlay.style.display = 'none';
-    return;
-  }
-  const days = calculateDaysDifference(lastUpdateStr, new Date());
-  if (days <= 0) {
-    overlay.style.display = 'none';
-    return;
-  }
-  overlay.innerText = `${days} días`;
-  overlay.style.display = 'block';
-}
+// -------------------------
+// Day counter overlay
+// -------------------------
+function updateDayCounter(lastTrackingStr, position, daysElapsed) {
+    const overlay = $('day-counter-overlay');
+    if (!activeMarkerId || !lastTrackingStr || daysElapsed <= 0) {
+        overlay.style.display = 'none';
+        return;
+    }
+    
+    // Configura el texto y el estilo
+    overlay.innerText = `${daysElapsed}`; // Solo el número de días
+    overlay.title = `${daysElapsed} días en esta ubicación.`;
+    overlay.style.display = 'block';
 
+    // Proyección: Convertir Lat/Lng a píxeles de pantalla (CRÍTICO)
+    const mapDiv = $('current-map');
+    const bounds = map.getBounds();
+    
+    // Wait for the map to be idle/ready
+    google.maps.event.addListenerOnce(map, 'idle', () => {
+        const projection = map.getProjection();
+        if (!projection) return;
+
+        // Convertir la posición LatLng a un punto de pantalla
+        const point = projection.fromLatLngToContainerPixel(new google.maps.LatLng(position.lat, position.lng));
+
+        // Ajustar la posición del overlay (caja grande)
+        // Lo posicionamos ligeramente a la derecha del marcador central (ej. 15px) y un poco más arriba.
+        const markerSizeOffset = 15; 
+        const labelOffset = 35; // Altura de la caja (para centrar)
+
+        overlay.style.left = `${point.x + markerSizeOffset}px`;
+        overlay.style.top = `${point.y - labelOffset}px`;
+        
+        // Listener para mover el overlay cuando se arrastra o hace zoom el mapa
+        google.maps.event.clearListeners(map, 'bounds_changed');
+        map.addListener('bounds_changed', () => {
+            const newProjection = map.getProjection();
+            if (!newProjection) return;
+            const newPoint = newProjection.fromLatLngToContainerPixel(new google.maps.LatLng(position.lat, position.lng));
+            overlay.style.left = `${newPoint.x + markerSizeOffset}px`;
+            overlay.style.top = `${newPoint.y - labelOffset}px`;
+        });
+    });
+}
 // -------------------------
 // Dictionary search (debounced)
 // -------------------------
