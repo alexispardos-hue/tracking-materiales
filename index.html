@@ -777,20 +777,25 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
             historyData.forEach((point, index) => {
 
                 const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
-
-                
-
                 pathCoordinates.push(position);
-
                 bounds.extend(position);
-
-
-
                 let durationDays = 0;
-
-                let departureStr = point.departure; 
-
+                let departureStr = point.departure; // Por defecto usa el campo 'departure' si existe
+                const nextPoint = historyData[index + 1]; // Obtener el siguiente punto
+                // 1. Determinar Fecha de Salida (Look-Ahead)
+                    if (nextPoint && nextPoint.arrival) {
+                        // Si hay un punto siguiente válido, su arribo es la salida de este punto.
+                        departureStr = nextPoint.arrival; 
+                    } else if (index === historyData.length - 1) {
+                        // Si es el ÚLTIMO punto, la salida es la fecha de la última actualización de la hoja.
+                        departureStr = lastUpdateDateStr; 
+                    }
                 
+                    // 2. Calcular duración
+                    if (point.arrival && departureStr) {
+                        // Usar ARRIVAL del punto actual y la fecha de SALIDA calculada (next arrival o lastUpdateDate)
+                        durationDays = calculateDaysDifference(point.arrival, departureStr); 
+                    }
 
                 // Si no hay departure, es el punto actual (el último en el array)
 
@@ -1220,13 +1225,27 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                 // ----------------------------------------------------------------
                 let coordsDisplay = '';
                 // Mostrar coordenadas SOLO si NO es el punto actual
-                if (!isCurrentPoint && point.lat && point.lng) {
-                    const lat = parseFloat(point.lat).toFixed(4);
-                    const lng = parseFloat(point.lng).toFixed(4);
-                    coordsDisplay = `(${lat},${lng})`;
-                } else if (isCurrentPoint) {
-                    coordsDisplay = ' (Posición Actual)'; // Etiqueta para el último punto
-                }
+               
+                   if (isCurrentPoint) {
+                    // Para el punto actual, la salida es "En Curso" y usamos FECHA_ACTUALIZACION para los días
+                    departure = 'En Curso';
+                    let daysElapsed = 0;
+                       if (point.arrival) {
+                         daysElapsed = calculateDaysDifference(point.arrival, new Date()); 
+                        } else {
+                            // Fallback: Si el último punto no tiene arrival (como tu data 'N/A'), usar FECHA_ACTUALIZACION.
+                            daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, new Date());
+                        }
+
+                       durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
+                       } else {
+                            // Lógica para puntos históricos (entre arribo y salida) - ESTO ESTÁ CORRECTO.
+                            const daysElapsed = calculateDaysDifference(point.arrival, point.departure);
+                            const departureDateObj = getValidDate(departure);
+                            departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
+                            durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
+                        }
+                                            
    
             htmlContent += `
                     <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
