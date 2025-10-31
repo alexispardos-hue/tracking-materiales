@@ -678,47 +678,87 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
         }
 
         // 7. CÁLCULO DE DIFERENCIA DE DÍAS (CRÍTICO)
-            function getValidDate(dateValue) {
-                if (!dateValue || dateValue === 'N/A' || dateValue === 'En Curso') {
-                    return null;
-                }
-                
-                let date;
-            
-                // Si viene como string ISO de Apps Script, tomamos la fecha y forzamos la medianoche local
-                if (typeof dateValue === 'string') {
-                    // Tomamos solo la parte YYYY-MM-DD
-                    const datePart = dateValue.split('T')[0]; 
-                    // Creamos la fecha, que se interpreta como medianoche UTC, luego es ajustada por el navegador
-                    date = new Date(datePart + 'T00:00:00'); 
-                } 
-                else if (dateValue instanceof Date) {
-                    date = dateValue;
-                } else {
-                    return null;
-                }
 
-                                date.setHours(0, 0, 0, 0); 
-                
-                    return date;
-                }
-          // Ahora, ajustamos calculateDaysDifference para que use la función de limpieza
-            function calculateDaysDifference(startDateStr, endDateStr) {
-                // Usamos la función de limpieza para convertir ambas fechas a medianoche del día.
-                const startDate = getValidDate(startDateStr);
-                const endDate = getValidDate(endDateStr);
-                const oneDay = 24 * 60 * 60 * 1000;
+        function calculateDaysDifference(startDateStr, endDateStr) {
+
+            const oneDay = 24 * 60 * 60 * 1000;
+            const fechaLlegadaStr = materialActual.FECHA_ACTUALIZACION; // Ejemplo: "2025-10-15"
+            const fechaHoy = new Date(); // La fecha actual
+
             
-                if (!startDate || !endDate || startDate.getTime() > endDate.getTime()) {
-                    return 0; 
-                }
+            // 1. Convertir la cadena de llegada a objeto Date
+
+            // Importante: Usar formato YYYY-MM-DD para compatibilidad. Si tu Apps Script no da este formato, ajústalo.
+
+            const fechaLlegada = new Date(fechaLlegadaStr); 
+
             
-                const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                
-                // El redondeo es crucial para evitar errores de huso horario.
-                return Math.round(diffTime / oneDay); 
+           // 2. Realizar la resta (obtiene la diferencia en milisegundos)
+
+            const diferenciaMilisegundos = fechaHoy.getTime() - fechaLlegada.getTime();
+
+            
+            // 3. Convertir milisegundos a días
+
+            // (Milisegundos por segundo * Segundos por minuto * Minutos por hora * Horas por día)
+
+            const diasDePermanencia = Math.floor(diferenciaMilisegundos / (1000 * 60 * 60 * 24));
+
+            
+
+            // 4. Mostrar el resultado
+
+            if (isNaN(diasDePermanencia)) {
+
+                // Si sigue dando NaN, al menos muestra un mensaje de error claro en la consola.
+
+                console.error("Error de cálculo de días: ¡Las fechas no son válidas!");
+
+            } else {
+
+                // Mostrar 'diasDePermanencia'
+
+                // Debería ser 15 días si usas la fecha de tu JSON (15/10/25) hasta hoy (30/10/25).
+
             }
-            //              
+
+            // Usar la fecha de hoy si la fecha de fin no está definida (solo para el último punto histórico)
+
+            const endDate = endDateStr ? new Date(endDateStr) : new Date(new Date().toISOString().split('T')[0]);
+
+            const startDate = new Date(startDateStr);
+
+            
+
+            // Manejo de offset de zona horaria: ajusta la fecha para que la diferencia sea correcta
+
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate.setHours(0, 0, 0, 0);
+
+
+
+            // Si la fecha de inicio es posterior a la fecha de fin (error lógico), regresa 0
+
+            if (startDate.getTime() > endDate.getTime()) {
+
+                return 0;
+
+            }
+
+
+
+            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+
+            
+
+            // Se redondea al entero más cercano para evitar imprecisiones por husos horarios
+
+            return Math.round(diffTime / oneDay); 
+
+        }
+
+
 
         // 9. FUNCIÓN DE LIMPIEZA DEL MAPA HISTÓRICO
 
