@@ -222,16 +222,16 @@
         }
         .map-label-background {
         /* Fondo blanco casi opaco para el contraste */
-            background-color: rgba(255, 255, 255, 0.95) !important; 
-            padding: 3px 6px !important; 
-            border-radius: 4px !important; 
-            border: 1px solid #333 !important; 
-            /* Sombra para que destaque del mapa */
-            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4) !important; 
-            /* Esto es crucial para forzar la visibilidad */
-            z-index: 100 !important; 
-            position: relative !important;
-            white-space: nowrap; /* Evita que el texto se rompa */
+/* Fondo blanco casi opaco para el contraste */
+    background-color: rgba(255, 255, 255, 0.95) !important; 
+    padding: 3px 6px !important; 
+    border-radius: 4px !important; 
+    border: 1px solid #333 !important; 
+    /* Sombra para que destaque del mapa */
+    box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4) !important; 
+    z-index: 100 !important; 
+    position: relative !important;
+    white-space: nowrap; /* Evita que el texto se rompa */
         }
         
 
@@ -330,13 +330,12 @@
 
     </div>
 
-<script>
+    <script>
 /*
-  Optimized Tracking Map Script
-  - Mejora: un solo punto de configuración (API_KEY, ENDPOINT, REFRESH_INTERVAL_MS)
-  - Mejora: manejo robusto de fetch con AbortController y manejo de errores
-  - Mejora: debounce para búsquedas y limpieza correcta de intervalos/listeners
-  - Nota: NO expongas API_KEY en frontend en producción (proxy / servidor recomendado)
+  Optimized Tracking Map Script
+  - CRÍTICO: El marcador activo usa un ícono SVG dinámico para mostrar el punto y la etiqueta de días simultáneamente.
+  - CRÍTICO: La diferencia de días se calcula contra el último punto de HISTORY válido.
+  - CRÍTICO: La ficha de detalles filtra puntos con 'N/A' para el conteo preciso (3 historial + 1 actual = 4).
 */
 
 const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; // -> ocultar en producción
@@ -363,520 +362,557 @@ let activeFetchController = null;
 const $ = id => document.getElementById(id);
 
 function safeParseFloat(v, fallback = 0) {
-  const n = parseFloat(String(v).replace(',', '.'));
-  return Number.isFinite(n) ? n : fallback;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function debounce(fn, wait) {
-  let t;
-  return function (...args) {
-    clearTimeout(t);
-    t = setTimeout(() => fn.apply(this, args), wait);
-  };
+  let t;
+  return function (...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
 }
 
 // -------------------------
 // Date handling
 // -------------------------
 function getValidDate(dateStrOrObj) {
-  if (!dateStrOrObj) return null;
-  if (dateStrOrObj instanceof Date && !isNaN(dateStrOrObj)) return new Date(dateStrOrObj.getFullYear(), dateStrOrObj.getMonth(), dateStrOrObj.getDate());
+  if (!dateStrOrObj) return null;
+  if (dateStrOrObj instanceof Date && !isNaN(dateStrOrObj)) return new Date(dateStrOrObj.getFullYear(), dateStrOrObj.getMonth(), dateStrOrObj.getDate());
 
-  let s = String(dateStrOrObj).trim();
-  // dd/mm/yyyy
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const [d, m, y] = s.split('/').map(Number);
-    const dObj = new Date(y, m - 1, d);
-    return isNaN(dObj.getTime()) ? null : new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate());
-  }
-  // ISO or any parseable - convert to local date midnight using UTC parts to avoid timezone-shift bug
-  const d = new Date(s);
-  if (isNaN(d.getTime())) return null;
-  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  let s = String(dateStrOrObj).trim();
+  // dd/mm/yyyy
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/').map(Number);
+    const dObj = new Date(y, m - 1, d);
+    return isNaN(dObj.getTime()) ? null : new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate());
+  }
+  // ISO or any parseable - convert to local date midnight using UTC parts to avoid timezone-shift bug
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 function calculateDaysDifference(startDateStr, endDateStr) {
-  const start = getValidDate(startDateStr);
-  const end = getValidDate(endDateStr);
-  if (!start || !end || start.getTime() > end.getTime()) return 0;
-  const oneDay = 24 * 60 * 60 * 1000;
-  const diff = Math.floor((end.getTime() - start.getTime()) / oneDay);
-  return diff;
+  const start = getValidDate(startDateStr);
+  const end = getValidDate(endDateStr);
+  if (!start || !end || start.getTime() > end.getTime()) return 0;
+  const oneDay = 24 * 60 * 60 * 1000;
+  const diff = Math.floor((end.getTime() - start.getTime()) / oneDay);
+  return diff;
 }
 
 // -------------------------
 // Google Maps loader
 // -------------------------
 function loadGoogleMapsScript() {
-  if (window.google && window.google.maps) {
-    // already loaded
-    return Promise.resolve();
-  }
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-gmaps]`);
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Failed to load Google Maps script')));
-      return;
-    }
-    const script = document.createElement('script');
-    script.setAttribute('data-gmaps', '1');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
-    document.head.appendChild(script);
-  });
+  if (window.google && window.google.maps) {
+    // already loaded
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-gmaps]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Maps script')));
+      return;
+    }
+    const script = document.createElement('script');
+    script.setAttribute('data-gmaps', '1');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    document.head.appendChild(script);
+  });
 }
 
 // -------------------------
 // Map init
 // -------------------------
 async function initMap() {
-  try {
-    await loadGoogleMapsScript();
-  } catch (err) {
-    console.error('No se pudo cargar Google Maps:', err);
-    $('status-message').innerText = 'ERROR: No se pudo cargar Google Maps.';
-    return;
-  }
+  try {
+    await loadGoogleMapsScript();
+  } catch (err) {
+    console.error('No se pudo cargar Google Maps:', err);
+    $('status-message').innerText = 'ERROR: No se pudo cargar Google Maps.';
+    return;
+  }
 
-  const defaultLocation = { lat: -12.0464, lng: -77.0428 };
-  map = new google.maps.Map($('current-map'), {
-    zoom: 12,
-    center: defaultLocation,
-    streetViewControl: false,
-  });
+  const defaultLocation = { lat: -12.0464, lng: -77.0428 };
+  map = new google.maps.Map($('current-map'), {
+    zoom: 12,
+    center: defaultLocation,
+    streetViewControl: false,
+  });
 
-  historyMap = new google.maps.Map($('history-map'), {
-    zoom: 12,
-    center: defaultLocation,
-    streetViewControl: false,
-  });
+  historyMap = new google.maps.Map($('history-map'), {
+    zoom: 12,
+    center: defaultLocation,
+    streetViewControl: false,
+  });
 
-  // Detener listeners manual zoom detection al recargar nuevo mapa
-  isHistoryMapManualZoom = false;
+  // Detener listeners manual zoom detection al recargar nuevo mapa
+  isHistoryMapManualZoom = false;
 
-  // Start data refresh
-  startDataRefresh();
+  // Start data refresh
+  startDataRefresh();
 }
 
 // -------------------------
 // Fetch data (robusto)
 // -------------------------
 async function fetchMaterialData() {
-  // Cancel previous fetch if existe
-  if (activeFetchController) {
-    activeFetchController.abort();
-  }
-  activeFetchController = new AbortController();
-  const signal = activeFetchController.signal;
+  // Cancel previous fetch if existe
+  if (activeFetchController) {
+    activeFetchController.abort();
+  }
+  activeFetchController = new AbortController();
+  const signal = activeFetchController.signal;
 
-  try {
-    const res = await fetch(ENDPOINT_URL, { signal, cache: 'no-cache' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+  try {
+    const res = await fetch(ENDPOINT_URL, { signal, cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
 
-    if (data && data.status === 'success' && Array.isArray(data.data)) {
-      // Filtrado: solo elementos con ID_MATERIAL
-      allMaterials = data.data.filter(it => it && it.ID_MATERIAL);
-      if (initialLoad) {
-        $('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
-        initialLoad = false;
-      } else {
-        $('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-      }
+    if (data && data.status === 'success' && Array.isArray(data.data)) {
+      // Filtrado: solo elementos con ID_MATERIAL
+      allMaterials = data.data.filter(it => it && it.ID_MATERIAL);
+      if (initialLoad) {
+        $('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
+        initialLoad = false;
+      } else {
+        $('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
+      }
 
-      // Solo refrescar marcador activo (si existe)
-      if (activeMarkerId) {
-        updateActiveMarker(activeMarkerId);
-      }
-    } else {
-      console.error('Endpoint error:', data);
-      $('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      console.log('Fetch aborted (nuevo fetch iniciado).');
-    } else {
-      console.error('Error de conexión con Apps Script:', err);
-      $('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
-    }
-  } finally {
-    activeFetchController = null;
-  }
+      // Solo refrescar marcador activo (si existe)
+      if (activeMarkerId) {
+        updateActiveMarker(activeMarkerId);
+      }
+    } else {
+      console.error('Endpoint error:', data);
+      $('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('Fetch aborted (nuevo fetch iniciado).');
+    } else {
+      console.error('Error de conexión con Apps Script:', err);
+      $('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
+    }
+  } finally {
+    activeFetchController = null;
+  }
 }
 
 // -------------------------
 // Active marker management
 // -------------------------
 function clearActiveMarker() {
-  if (activeMarker) {
-    activeMarker.setMap(null);
-    activeMarker = null;
-    activeMarkerId = null;
-  }
-  if (blinkIntervalId) {
-    clearInterval(blinkIntervalId);
-    blinkIntervalId = null;
-  }
-  if (durationInfoWindow) {
-    durationInfoWindow.close();
-    durationInfoWindow = null;
-  }
-  $('material-details').style.display = 'none';
-  $('day-counter-overlay').style.display = 'none';
-  clearHistoryTracking();
-  if (!initialLoad) $('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.';
+  if (activeMarker) {
+    activeMarker.setMap(null);
+    activeMarker = null;
+    activeMarkerId = null;
+  }
+  if (blinkIntervalId) {
+    clearInterval(blinkIntervalId);
+    blinkIntervalId = null;
+  }
+  if (durationInfoWindow) {
+    durationInfoWindow.close();
+    durationInfoWindow = null;
+  }
+  $('material-details').style.display = 'none';
+  $('day-counter-overlay').style.display = 'none';
+  clearHistoryTracking();
+  if (!initialLoad) $('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.';
 }
 
 function startBlinking(marker, intervalMs = 3000) {
-  if (!marker) return;
-  if (blinkIntervalId) clearInterval(blinkIntervalId);
-  let visible = true;
-  // Use marker.setVisible to avoid messing with icon object references
-  blinkIntervalId = setInterval(() => {
-    marker.setVisible(visible);
-    visible = !visible;
-  }, intervalMs / 2);
+  if (!marker) return;
+  if (blinkIntervalId) clearInterval(blinkIntervalId);
+  let visible = true;
+  // Use marker.setVisible to avoid messing with icon object references
+  blinkIntervalId = setInterval(() => {
+    marker.setVisible(visible);
+    visible = !visible;
+  }, intervalMs / 2);
 }
 
 function updateActiveMarker(searchId) {
-  if (!searchId) {
-    clearActiveMarker();
-    return;
-  }
-  const idUpper = String(searchId).toUpperCase();
-  const material = allMaterials.find(item => item && item.ID_MATERIAL && String(item.ID_MATERIAL).toUpperCase() === idUpper);
+  if (!searchId) {
+    clearActiveMarker();
+    return;
+  }
+  const idUpper = String(searchId).toUpperCase();
+  const material = allMaterials.find(item => item && item.ID_MATERIAL && String(item.ID_MATERIAL).toUpperCase() === idUpper);
 
-  clearActiveMarker(); // siempre limpiar primero
-  $('material-details').style.display = 'none';
+  clearActiveMarker(); // siempre limpiar primero
+  $('material-details').style.display = 'none';
 
-  if (!material || !material.LATITUD || !material.LONGITUD) {
-    $('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
-    return;
-  }
+  if (!material || !material.LATITUD || !material.LONGITUD) {
+    $('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
+    return;
+  }
 
-  activeMarkerId = idUpper;
-  const position = { lat: safeParseFloat(material.LATITUD), lng: safeParseFloat(material.LONGITUD) };
+  activeMarkerId = idUpper;
+  const position = { lat: safeParseFloat(material.LATITUD), lng: safeParseFloat(material.LONGITUD) };
 
-  // duración
-  const arrivalDateStr = material.FECHA_ACTUALIZACION;
-  let daysElapsed = 0;
-  let durationText = 'HOY';
-  if (arrivalDateStr && arrivalDateStr !== 'N/A') {
-    daysElapsed = calculateDaysDifference(arrivalDateStr, new Date());
-    if (daysElapsed > 0) durationText = `${daysElapsed} DÍAS`;
-  }
+  // --- LÓGICA CRÍTICA DE CÁLCULO DE DURACIÓN (Punto 3) ---
+  const todayDate = new Date();
+  // Filtramos los puntos de historial que sí tienen fecha/coordenadas
+  const validHistoryPoints = Array.isArray(material.HISTORY) 
+    ? material.HISTORY.filter(p => p && p.lat && p.lng && p.arrival && p.arrival !== 'N/A')
+    : [];
+  
+  // La fecha de referencia es la fecha de llegada del ÚLTIMO punto de historial válido
+  let lastTrackingDateStr = material.FECHA_ACTUALIZACION; // Fallback
+  if (validHistoryPoints.length > 0) {
+    lastTrackingDateStr = validHistoryPoints[validHistoryPoints.length - 1].arrival;
+  }
+  
+  let daysElapsed = 0;
+  let durationText = 'HOY';
+  
+  if (lastTrackingDateStr && lastTrackingDateStr !== 'N/A') {
+    daysElapsed = calculateDaysDifference(lastTrackingDateStr, todayDate);
+    if (daysElapsed > 0) durationText = `${daysElapsed} DÍAS`;
+  }
 
-  const contentString = `
-    <div style="font-family: Arial, sans-serif; max-width: 320px;">
-      <h4 style="margin:0;color:#1a73e8;">Material: ${material.ID_MATERIAL}</h4>
-      <p><strong>Estado:</strong> ${material.ESTADO || 'N/A'}</p>
-      <p><strong>Permanencia:</strong> ${durationText}</p>
-      <hr style="border-top:1px solid #eee;margin:8px 0;">
-      <p><strong>Desc:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-      <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-      <p style="font-size:0.8em;color:#777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
-    </div>
-  `;
+  const contentString = `
+    <div style="font-family: Arial, sans-serif; max-width: 320px;">
+      <h4 style="margin:0;color:#1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+      <p><strong>Estado:</strong> ${material.ESTADO || 'N/A'}</p>
+      <p><strong>Permanencia:</strong> ${durationText}</p>
+      <hr style="border-top:1px solid #eee;margin:8px 0;">
+      <p><strong>Desc:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+      <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+      <p style="font-size:0.8em;color:#777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+    </div>
+  `;
 
-activeMarker = new google.maps.Marker({
-    position,
-    map,
-    title: `Material: ${material.ID_MATERIAL}`,
-    // ETIQUETA DE DURACIÓN: CRÍTICO PARA VISIBILIDAD
-    label: { 
-        text: durationText, 
-        fontSize: '14px', 
-        fontWeight: 'bold', 
-        color: '#000000',
-        className: 'map-label-background' // Usa la clase CSS de contraste
-    },
-    labelOrigin: new google.maps.Point(0, -15), // <-- CRÍTICO: ELEVA LA ETIQUETA DEL MARCADOR
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 9,
-      fillColor: '#FF0000',
-      fillOpacity: 1,
-      strokeWeight: 1,
-      strokeColor: '#cc0000'
-        
-    }
-  });
+    // --- CRÍTICO: USO DE SVG DINÁMICO PARA DIBUJAR PUNTO Y ETIQUETA (Punto 1) ---
+    // Esto asegura que el círculo rojo SIEMPRE se muestre y la etiqueta se vea encima.
+    const iconBase64 = `data:image/svg+xml;charset=UTF-8,` + encodeURIComponent(`
+        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="15" r="9" fill="#FF0000" stroke="#cc0000" stroke-width="1.5" fill-opacity="1"/>
+            
+            <rect x="5" y="-18" rx="4" ry="4" width="20" height="18" fill="rgba(255, 255, 255, 0.95)" stroke="#333" stroke-width="0.5"/>
+            
+            <text x="15" y="-4" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000" text-anchor="middle">
+                ${durationText}
+            </text>
+        </svg>
+    `);
+    
+    // El marcador utiliza el ícono SVG que hemos creado
+    activeMarker = new google.maps.Marker({
+        position,
+        map,
+        title: `Material: ${material.ID_MATERIAL}`,
+        icon: {
+            url: iconBase64,
+            scaledSize: new google.maps.Size(30, 30),
+            // Ancla el ícono en la base del círculo (centro del SVG 15,15)
+            anchor: new google.maps.Point(15, 15) 
+        }
+    });
 
-  const infow = new google.maps.InfoWindow({ content: contentString });
-  activeMarker.addListener('click', () => infow.open(map, activeMarker));
+  const infow = new google.maps.InfoWindow({ content: contentString });
+  activeMarker.addListener('click', () => infow.open(map, activeMarker));
 
-  startBlinking(activeMarker, 3000);
-  map.setCenter(position);
-  map.setZoom(15);
+  startBlinking(activeMarker, 3000);
+  map.setCenter(position);
+  map.setZoom(15);
 
-  // mostrar ficha y contador
-  displayMaterialDetails(material.ID_MATERIAL);
-  updateDayCounter(material.FECHA_ACTUALIZACION, position);
+  // mostrar ficha y contador
+  displayMaterialDetails(material.ID_MATERIAL);
+  updateDayCounter(material.FECHA_ACTUALIZACION, position);
 
-  // historial
-  if (Array.isArray(material.HISTORY) && material.HISTORY.length > 0) {
-    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
-  } else {
-    clearHistoryTracking();
-  }
+  // historial
+  if (Array.isArray(material.HISTORY) && material.HISTORY.length > 0) {
+    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
+  } else {
+    clearHistoryTracking();
+  }
 
-  $('status-message').innerText = `Estado: Material ${material.ID_MATERIAL} ubicado y en seguimiento activo.`;
+  $('status-message').innerText = `Estado: Material ${material.ID_MATERIAL} ubicado y en seguimiento activo.`;
 }
 
 // -------------------------
 // History map
 // -------------------------
 function clearHistoryTracking() {
-  historyMarkers.forEach(m => m.setMap(null));
-  historyMarkers = [];
-  if (polyline) {
-    polyline.setMap(null);
-    polyline = null;
-  }
-  if (historyMap) $('history-map').style.display = 'none';
-  isHistoryMapManualZoom = false;
+  historyMarkers.forEach(m => m.setMap(null));
+  historyMarkers = [];
+  if (polyline) {
+    polyline.setMap(null);
+    polyline = null;
+  }
+  if (historyMap) $('history-map').style.display = 'none';
+  isHistoryMapManualZoom = false;
 }
 
 function plotHistoricalTracking(historyData, materialId) {
-  clearHistoryTracking();
-  if (!historyMap || !Array.isArray(historyData) || historyData.length === 0) return;
+  clearHistoryTracking();
+  if (!historyMap || !Array.isArray(historyData) || historyData.length === 0) return;
 
-  $('history-map').style.display = 'block';
-  const pathCoordinates = [];
-  const bounds = new google.maps.LatLngBounds();
+  $('history-map').style.display = 'block';
+  const pathCoordinates = [];
+  const bounds = new google.maps.LatLngBounds();
 
-  // detect manual interaction once
-  if (!isHistoryMapManualZoom) {
-    google.maps.event.addListenerOnce(historyMap, 'zoom_changed', () => { isHistoryMapManualZoom = true; });
-    google.maps.event.addListenerOnce(historyMap, 'center_changed', () => { isHistoryMapManualZoom = true; });
-  }
+  // detect manual interaction once
+  if (!isHistoryMapManualZoom) {
+    google.maps.event.addListenerOnce(historyMap, 'zoom_changed', () => { isHistoryMapManualZoom = true; });
+    google.maps.event.addListenerOnce(historyMap, 'center_changed', () => { isHistoryMapManualZoom = true; });
+  }
 
-  const lastUpdateDateStr = (() => {
-    const m = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
-    return m ? m.FECHA_ACTUALIZACION : null;
-  })();
+  const lastUpdateDateStr = (() => {
+    const m = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
+    return m ? m.FECHA_ACTUALIZACION : null;
+  })();
 
-  historyData.forEach((point, idx) => {
-    const lat = safeParseFloat(point.lat, NaN);
-    const lng = safeParseFloat(point.lng, NaN);
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-    const pos = { lat, lng };
-    pathCoordinates.push(pos);
-    bounds.extend(pos);
+  historyData.forEach((point, idx) => {
+    const lat = safeParseFloat(point.lat, NaN);
+    const lng = safeParseFloat(point.lng, NaN);
+    
+    // Filtro estricto para no dibujar marcadores sin coordenadas o sin fecha.
+    if (Number.isNaN(lat) || Number.isNaN(lng) || !point.arrival || point.arrival === 'N/A') return;
+    
+    const pos = { lat, lng };
+    pathCoordinates.push(pos);
+    bounds.extend(pos);
 
-    const arrivalDateObj = getValidDate(point.arrival);
-    const arrivalFormatted = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'Fecha N/A';
+    const arrivalDateObj = getValidDate(point.arrival);
+    const arrivalFormatted = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'Fecha N/A';
 
-    // compute duration using next point.arrival or lastUpdateDateStr for last
-    let departureStr = lastUpdateDateStr;
-    const next = historyData[idx + 1];
-    if (next && next.arrival) departureStr = next.arrival;
+    // compute duration using next point.arrival or lastUpdateDateStr for last
+    let departureStr = lastUpdateDateStr;
+    const next = historyData[idx + 1];
+    if (next && next.arrival) departureStr = next.arrival;
 
-    const durationDays = (point.arrival && departureStr) ? calculateDaysDifference(point.arrival, departureStr) : 0;
+    const durationDays = (point.arrival && departureStr) ? calculateDaysDifference(point.arrival, departureStr) : 0;
 
-    const mark = new google.maps.Marker({
-      position: pos,
-      map: historyMap,
-      title: `Punto #${idx + 1}: ${arrivalFormatted}`,
-      label: { text: arrivalFormatted, fontSize: '12px', className: 'map-label-background' },
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: idx === historyData.length - 1 ? 8 : 6,
-        fillColor: idx === historyData.length - 1 ? '#FF0000' : '#0000FF',
-        fillOpacity: 0.9,
-        strokeWeight: 1
-      }
-    });
+    const mark = new google.maps.Marker({
+      position: pos,
+      map: historyMap,
+      title: `Punto #${idx + 1}: ${arrivalFormatted}`,
+      label: { 
+          text: arrivalFormatted, 
+          fontSize: '12px', 
+          fontWeight: 'bold', 
+          color: '#000000',
+          className: 'map-label-background' 
+      },
+      labelOrigin: new google.maps.Point(0, -15), // Eleva la etiqueta en el historial
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: idx === historyData.length - 1 ? 8 : 6,
+        fillColor: idx === historyData.length - 1 ? '#FF0000' : '#0000FF',
+        fillOpacity: 0.9,
+        strokeWeight: 1,
+        strokeColor: idx === historyData.length - 1 ? '#cc0000' : '#0000CC'
+      }
+    });
 
-    const content = `
-      <div style="font-size:0.9em;">
-        <strong>Punto #${idx + 1}</strong><br>
-        Arribo: ${arrivalFormatted}<br>
-        Duración: ${durationDays} días
-      </div>
-    `;
-    const iw = new google.maps.InfoWindow({ content });
-    mark.addListener('click', () => iw.open(historyMap, mark));
-    historyMarkers.push(mark);
-  });
+    const content = `
+      <div style="font-size:0.9em;">
+        <strong>Punto #${idx + 1}</strong><br>
+        Arribo: ${arrivalFormatted}<br>
+        Duración: ${durationDays} días
+      </div>
+    `;
+    const iw = new google.maps.InfoWindow({ content });
+    mark.addListener('click', () => iw.open(historyMap, mark));
+    historyMarkers.push(mark);
+  });
 
-  // polyline
-  if (pathCoordinates.length > 1) {
-    polyline = new google.maps.Polyline({
-      path: pathCoordinates,
-      geodesic: true,
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      map: historyMap
-    });
-  }
+  // polyline
+  if (pathCoordinates.length > 1) {
+    polyline = new google.maps.Polyline({
+      path: pathCoordinates,
+      geodesic: true,
+      strokeOpacity: 0.8,
+      strokeColor: '#0000FF',
+      strokeWeight: 2,
+      map: historyMap
+    });
+  }
 
-  if (!isHistoryMapManualZoom && !bounds.isEmpty && !bounds.isEmpty()) {
-    historyMap.fitBounds(bounds);
-  }
+  if (!isHistoryMapManualZoom && !bounds.isEmpty && !bounds.isEmpty()) {
+    historyMap.fitBounds(bounds);
+  }
 }
 
 // -------------------------
 // Day counter overlay
 // -------------------------
 function updateDayCounter(lastUpdateStr, position) {
-  const overlay = $('day-counter-overlay');
-  if (!activeMarkerId || !lastUpdateStr) {
-    overlay.style.display = 'none';
-    return;
-  }
-  const days = calculateDaysDifference(lastUpdateStr, new Date());
-  if (days <= 0) {
-    overlay.style.display = 'none';
-    return;
-  }
-  overlay.innerText = `${days} días`;
-  overlay.style.display = 'block';
+  const overlay = $('day-counter-overlay');
+  if (!activeMarkerId || !lastUpdateStr) {
+    overlay.style.display = 'none';
+    return;
+  }
+  const days = calculateDaysDifference(lastUpdateStr, new Date());
+  if (days <= 0) {
+    overlay.style.display = 'none';
+    return;
+  }
+  overlay.innerText = `${days} días`;
+  overlay.style.display = 'block';
 }
 
 // -------------------------
 // Dictionary search (debounced)
 // -------------------------
 function filterDictionaryInternal(searchTerm) {
-  const selector = $('search-selector');
-  const searchField = selector ? selector.value : 'ID_MATERIAL';
-  const resultsContainer = $('dictionary-results');
-  const resultsList = $('results-list');
-  if (!resultsContainer || !resultsList) return;
+  const selector = $('search-selector');
+  const searchField = selector ? selector.value : 'ID_MATERIAL';
+  const resultsContainer = $('dictionary-results');
+  const resultsList = $('results-list');
+  if (!resultsContainer || !resultsList) return;
 
-  const term = String(searchTerm || '').trim().toLowerCase();
-  if (term.length < 2) {
-    resultsContainer.style.display = 'none';
-    resultsList.innerHTML = '';
-    return;
-  }
+  const term = String(searchTerm || '').trim().toLowerCase();
+  if (term.length < 2) {
+    resultsContainer.style.display = 'none';
+    resultsList.innerHTML = '';
+    return;
+  }
 
-  const filtered = allMaterials.filter(material => {
-    const v = (material && (material[searchField] || '')).toString().toLowerCase();
-    return v.includes(term);
-  });
+  const filtered = allMaterials.filter(material => {
+    const v = (material && (material[searchField] || '')).toString().toLowerCase();
+    return v.includes(term);
+  });
 
-  resultsList.innerHTML = '';
-  if (filtered.length === 0) {
-    resultsContainer.style.display = 'none';
-    return;
-  }
+  resultsList.innerHTML = '';
+  if (filtered.length === 0) {
+    resultsContainer.style.display = 'none';
+    return;
+  }
 
-  resultsContainer.style.display = 'block';
-  const fragment = document.createDocumentFragment();
-  filtered.slice(0, 10).forEach(mat => {
-    const li = document.createElement('li');
-    const mid = mat.ID_MATERIAL;
-    const display = mat[searchField] || 'N/A';
-    li.innerHTML = `<a href="#" data-mid="${mid}" class="dict-link"><strong>ID ${mid}</strong></a>: ${display}`;
-    fragment.appendChild(li);
-  });
-  resultsList.appendChild(fragment);
+  resultsContainer.style.display = 'block';
+  const fragment = document.createDocumentFragment();
+  filtered.slice(0, 10).forEach(mat => {
+    const li = document.createElement('li');
+    const mid = mat.ID_MATERIAL;
+    const display = mat[searchField] || 'N/A';
+    li.innerHTML = `<a href="#" data-mid="${mid}" class="dict-link"><strong>ID ${mid}</strong></a>: ${display}`;
+    fragment.appendChild(li);
+  });
+  resultsList.appendChild(fragment);
 }
 
 const filterDictionary = debounce(filterDictionaryInternal, 220);
 
 // delegate clicks on dictionary results
 document.addEventListener('click', (e) => {
-  const a = e.target.closest && e.target.closest('.dict-link');
-  if (a) {
-    e.preventDefault();
-    const mid = a.getAttribute('data-mid');
-    if (mid) {
-      $('dictionary-results').style.display = 'none';
-      $('search-input').value = '';
-      updateActiveMarker(mid);
-    }
-  }
+  const a = e.target.closest && e.target.closest('.dict-link');
+  if (a) {
+    e.preventDefault();
+    const mid = a.getAttribute('data-mid');
+    if (mid) {
+      $('dictionary-results').style.display = 'none';
+      $('search-input').value = '';
+      updateActiveMarker(mid);
+    }
+  }
 });
 
 // -------------------------
 // Keyboard search (enter)
- // -------------------------
+ // -------------------------
 $('search-input') && $('search-input').addEventListener('keydown', (ev) => {
-  if (ev.key === 'Enter') {
-    const val = $('search-input').value.trim();
-    if (val) updateActiveMarker(val);
-    else clearActiveMarker();
-  }
+  if (ev.key === 'Enter') {
+    const val = $('search-input').value.trim();
+    if (val) updateActiveMarker(val);
+    else clearActiveMarker();
+  }
 });
 
 // -------------------------
 // Start / stop refresh
 // -------------------------
 function startDataRefresh() {
-  // cleanup previo
-  if (dataRefreshIntervalId) {
-    clearInterval(dataRefreshIntervalId);
-    dataRefreshIntervalId = null;
-  }
-  // fetch once immediately
-  fetchMaterialData();
-  // then schedule
-  dataRefreshIntervalId = setInterval(fetchMaterialData, REFRESH_INTERVAL_MS);
+  // cleanup previo
+  if (dataRefreshIntervalId) {
+    clearInterval(dataRefreshIntervalId);
+    dataRefreshIntervalId = null;
+  }
+  // fetch once immediately
+  fetchMaterialData();
+  // then schedule
+  dataRefreshIntervalId = setInterval(fetchMaterialData, REFRESH_INTERVAL_MS);
 }
 
 function stopDataRefresh() {
-  if (dataRefreshIntervalId) {
-    clearInterval(dataRefreshIntervalId);
-    dataRefreshIntervalId = null;
-  }
-  if (activeFetchController) {
-    activeFetchController.abort();
-    activeFetchController = null;
-  }
+  if (dataRefreshIntervalId) {
+    clearInterval(dataRefreshIntervalId);
+    dataRefreshIntervalId = null;
+  }
+  if (activeFetchController) {
+    activeFetchController.abort();
+    activeFetchController = null;
+  }
 }
 
 // -------------------------
 // Display details
 // -------------------------
 function displayMaterialDetails(materialId) {
-  if (!materialId) {
-    $('material-details').style.display = 'none';
-    return;
-  }
-  const mat = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
-  const detailsDiv = $('material-details');
-  if (!mat) {
-    detailsDiv.style.display = 'none';
-    return;
-  }
+  if (!materialId) {
+    $('material-details').style.display = 'none';
+    return;
+  }
+  const mat = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
+  const detailsDiv = $('material-details');
+  if (!mat) {
+    detailsDiv.style.display = 'none';
+    return;
+  }
 
-  const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION'];
-  let html = `<h4>Ficha de Datos del Material Activo</h4>`;
-  keysOrder.forEach(k => {
-    if (!mat.hasOwnProperty(k) && (mat[k] === undefined || mat[k] === null)) return;
-    const val = mat[k] || 'N/A';
-    const label = k.replace(/_/g, ' ').toUpperCase();
-    html += `<div class="detail-row"><strong>${label}:</strong> ${val}</div>`;
-  });
+  const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION'];
+  let html = `<h4>Ficha de Datos del Material Activo</h4>`;
+  keysOrder.forEach(k => {
+    if (!mat.hasOwnProperty(k) && (mat[k] === undefined || mat[k] === null)) return;
+    const val = mat[k] || 'N/A';
+    const label = k.replace(/_/g, ' ').toUpperCase();
+    html += `<div class="detail-row"><strong>${label}:</strong> ${val}</div>`;
+  });
 
-  // historial filtrado
-  let historyPoints = Array.isArray(mat.HISTORY) ? mat.HISTORY.filter(p => p && p.arrival && p.lat && p.lng) : [];
-  html += `<h4 style="margin-top:12px;">Historial de Movimientos (${historyPoints.length + 1})</h4>`;
-  historyPoints.forEach((p, i) => {
-    const d = getValidDate(p.arrival);
-    const formatted = d ? d.toLocaleDateString('es-PE') : 'N/A';
-    html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ccc;padding-left:5px;"><strong>#${i+1}</strong>: ${formatted}</div>`;
-  });
+  // --- CORRECCIÓN DE CONTEO (Punto 2) ---
+  // Historial filtrado: SOLO puntos con lat, lng Y arrival válido (no 'N/A')
+  let historyPoints = Array.isArray(mat.HISTORY) 
+    ? mat.HISTORY.filter(p => p && p.lat && p.lng && p.arrival && p.arrival !== 'N/A') 
+    : [];
+  
+  // El total de puntos es: Puntos de Historial Válidos + 1 (el punto actual)
+  const totalPoints = historyPoints.length + 1; 
+  html += `<h4 style="margin-top:12px;">Historial de Movimientos (${totalPoints})</h4>`;
+  
+  historyPoints.forEach((p, i) => {
+    const d = getValidDate(p.arrival);
+    const formatted = d ? d.toLocaleDateString('es-PE') : 'N/A';
+    // Se usa i+1 para el conteo de los puntos de historial
+    html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ccc;padding-left:5px;"><strong>#${i + 1}</strong>: ${formatted}</div>`; 
+  });
 
-  const todayFormatted = (new Date()).toLocaleDateString('es-PE');
-  html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ff0000;padding-left:5px;"><strong>#${historyPoints.length + 1} (Actual)</strong>: ${todayFormatted} / En Curso</div>`;
+  const todayFormatted = (new Date()).toLocaleDateString('es-PE');
+  // Se usa totalPoints para el último punto
+  html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ff0000;padding-left:5px;"><strong>#${totalPoints} (Actual)</strong>: ${todayFormatted} / En Curso</div>`;
+  // --- FIN DE CORRECCIÓN DE CONTEO ---
 
-  detailsDiv.innerHTML = html;
-  detailsDiv.style.display = 'block';
+  detailsDiv.innerHTML = html;
+  detailsDiv.style.display = 'block';
 }
 
 // -------------------------
 // Cleanup on unload
 // -------------------------
 window.addEventListener('beforeunload', () => {
-  stopDataRefresh();
-  clearActiveMarker();
+  stopDataRefresh();
+  clearActiveMarker();
 });
 
 // -------------------------
@@ -885,11 +921,10 @@ window.addEventListener('beforeunload', () => {
 window.initMap = initMap; // required by maps callback if used
 // If you used the script with callback=initMap, maps will call this. We also call initMap manually just in case
 loadGoogleMapsScript().then(initMap).catch(err => {
-  console.error('Error inicializando mapas:', err);
+  console.error('Error inicializando mapas:', err);
 });
 
 </script>
-
 
 
 </body>
