@@ -324,97 +324,556 @@
 
     </div>
 
-
 <script>
+/*
+  Optimized Tracking Map Script
+  - Mejora: un solo punto de configuración (API_KEY, ENDPOINT, REFRESH_INTERVAL_MS)
+  - Mejora: manejo robusto de fetch con AbortController y manejo de errores
+  - Mejora: debounce para búsquedas y limpieza correcta de intervalos/listeners
+  - Nota: NO expongas API_KEY en frontend en producción (proxy / servidor recomendado)
+*/
 
-    // *** 1. CONFIGURACIÓN CRÍTICA ***
-    // ¡REEMPLAZAR ESTAS DOS VARIABLES!
-    const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; 
-    const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxNy9jTgU3LWha7a5h7o6xR30BM6_qXwvAT7Sb9NF_etE7VJ9ftF-IjAllWNoU_3Q9Y/exec'; 
+const API_KEY = 'AIzaSyApDMsqrpdpP3WvmyCx6056F79Iv6aXiTE'; // -> ocultar en producción
+const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxNy9jTgU3LWha7a5h7o6xR30BM6_qXwvAT7Sb9NF_etE7VJ9ftF-IjAllWNoU_3Q9Y/exec';
+const REFRESH_INTERVAL_MS = 10000; // único sitio para ajustar refresh
 
+let map = null;
+let historyMap = null;
+let allMaterials = [];
+let activeMarker = null;
+let activeMarkerId = null;
+let blinkIntervalId = null;
+let historyMarkers = [];
+let polyline = null;
+let initialLoad = true;
+let isHistoryMapManualZoom = false;
+let durationInfoWindow = null;
+let dataRefreshIntervalId = null;
+let activeFetchController = null;
 
-    // Variables globales del estado del sistema
-    let map;
-    let historyMap; // Mapa de Tracking Histórico
-    let allMaterials = [];
-    let activeMaterial = null; // Objeto del material activo
-    let activeMarker = null; 
-    let activeMarkerId = null; // ID del material activo
-    let blinkInterval = null; 
-    let historyMarkers = []; 
-    let polyline = null; 
-    let initialLoad = true; 
-    const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
-    let isHistoryMapManualZoom = false; // Control de zoom manual del historial
-    let durationInfoWindow = null; // Variable de InfoWindow de duración (para limpieza de ser necesario)
+// -------------------------
+// Utilities
+// -------------------------
+const $ = id => document.getElementById(id);
 
-    // Carga la API de Google Maps de forma asíncrona
-    function loadGoogleMapsScript() {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap`;
-        script.async = true;
-        document.head.appendChild(script);
+function safeParseFloat(v, fallback = 0) {
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function debounce(fn, wait) {
+  let t;
+  return function (...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
+// -------------------------
+// Date handling
+// -------------------------
+function getValidDate(dateStrOrObj) {
+  if (!dateStrOrObj) return null;
+  if (dateStrOrObj instanceof Date && !isNaN(dateStrOrObj)) return new Date(dateStrOrObj.getFullYear(), dateStrOrObj.getMonth(), dateStrOrObj.getDate());
+
+  let s = String(dateStrOrObj).trim();
+  // dd/mm/yyyy
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/').map(Number);
+    const dObj = new Date(y, m - 1, d);
+    return isNaN(dObj.getTime()) ? null : new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate());
+  }
+  // ISO or any parseable - convert to local date midnight using UTC parts to avoid timezone-shift bug
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+function calculateDaysDifference(startDateStr, endDateStr) {
+  const start = getValidDate(startDateStr);
+  const end = getValidDate(endDateStr);
+  if (!start || !end || start.getTime() > end.getTime()) return 0;
+  const oneDay = 24 * 60 * 60 * 1000;
+  const diff = Math.floor((end.getTime() - start.getTime()) / oneDay);
+  return diff;
+}
+
+// -------------------------
+// Google Maps loader
+// -------------------------
+function loadGoogleMapsScript() {
+  if (window.google && window.google.maps) {
+    // already loaded
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-gmaps]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Maps script')));
+      return;
     }
+    const script = document.createElement('script');
+    script.setAttribute('data-gmaps', '1');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    document.head.appendChild(script);
+  });
+}
 
+// -------------------------
+// Map init
+// -------------------------
+async function initMap() {
+  try {
+    await loadGoogleMapsScript();
+  } catch (err) {
+    console.error('No se pudo cargar Google Maps:', err);
+    $('status-message').innerText = 'ERROR: No se pudo cargar Google Maps.';
+    return;
+  }
 
-    // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
-    window.initMap = function() {
-        // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
-        const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
-        map = new google.maps.Map(document.getElementById('current-map'), {
-            zoom: 12,
-            center: defaultLocation,
-        });
+  const defaultLocation = { lat: -12.0464, lng: -77.0428 };
+  map = new google.maps.Map($('current-map'), {
+    zoom: 12,
+    center: defaultLocation,
+    streetViewControl: false,
+  });
 
-        // 2. Mapa de Tracking Histórico (Contenedor: history-map)
-        historyMap = new google.maps.Map(document.getElementById('history-map'), {
-            zoom: 12,
-            center: defaultLocation,
-        });
+  historyMap = new google.maps.Map($('history-map'), {
+    zoom: 12,
+    center: defaultLocation,
+    streetViewControl: false,
+  });
 
-        // Inicia la actualización periódica
-        startDataRefresh();
+  // Detener listeners manual zoom detection al recargar nuevo mapa
+  isHistoryMapManualZoom = false;
+
+  // Start data refresh
+  startDataRefresh();
+}
+
+// -------------------------
+// Fetch data (robusto)
+// -------------------------
+async function fetchMaterialData() {
+  // Cancel previous fetch if existe
+  if (activeFetchController) {
+    activeFetchController.abort();
+  }
+  activeFetchController = new AbortController();
+  const signal = activeFetchController.signal;
+
+  try {
+    const res = await fetch(ENDPOINT_URL, { signal, cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data && data.status === 'success' && Array.isArray(data.data)) {
+      // Filtrado: solo elementos con ID_MATERIAL
+      allMaterials = data.data.filter(it => it && it.ID_MATERIAL);
+      if (initialLoad) {
+        $('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
+        initialLoad = false;
+      } else {
+        $('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
+      }
+
+      // Solo refrescar marcador activo (si existe)
+      if (activeMarkerId) {
+        updateActiveMarker(activeMarkerId);
+      }
+    } else {
+      console.error('Endpoint error:', data);
+      $('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
     }
-
-
-    // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
-    async function fetchMaterialData() {
-        try {
-            const response = await fetch(ENDPOINT_URL);
-            const data = await response.json(); 
-
-            if (data.status === 'success') {
-                // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
-                allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
-
-                // CRÍTICO: ACTUALIZA EL ESTADO AQUÍ, SOLO DESPUÉS DE LA PRIMERA CARGA EXITOSA
-                if (initialLoad) {
-                    document.getElementById('status-message').innerText = `Estado: Sistema listo. Total de materiales: ${allMaterials.length}`;
-                    initialLoad = false;
-                } else {
-                    document.getElementById('status-message').innerText = `Estado: Datos actualizados. Total de items: ${allMaterials.length}`;
-                }
-
-                // Si ya hay un material activo, actualiza solo ese marcador
-                if (activeMarkerId) {
-                    updateActiveMarker(activeMarkerId);
-                }
-
-            } else {
-                console.error("Error del Endpoint:", data.message);
-                document.getElementById('status-message').innerText = 'ERROR: No se pudieron obtener los datos.';
-            }
-
-        } catch (error) {
-            console.error('Error de conexión con Apps Script:', error);
-            document.getElementById('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
-        }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('Fetch aborted (nuevo fetch iniciado).');
+    } else {
+      console.error('Error de conexión con Apps Script:', err);
+      $('status-message').innerText = 'ERROR: Fallo en la conexión de red.';
     }
+  } finally {
+    activeFetchController = null;
+  }
+}
 
+// -------------------------
+// Active marker management
+// -------------------------
+function clearActiveMarker() {
+  if (activeMarker) {
+    activeMarker.setMap(null);
+    activeMarker = null;
+    activeMarkerId = null;
+  }
+  if (blinkIntervalId) {
+    clearInterval(blinkIntervalId);
+    blinkIntervalId = null;
+  }
+  if (durationInfoWindow) {
+    durationInfoWindow.close();
+    durationInfoWindow = null;
+  }
+  $('material-details').style.display = 'none';
+  $('day-counter-overlay').style.display = 'none';
+  clearHistoryTracking();
+  if (!initialLoad) $('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.';
+}
 
-    // 4. LÓGICA DE BÚ
-    
+function startBlinking(marker, intervalMs = 3000) {
+  if (!marker) return;
+  if (blinkIntervalId) clearInterval(blinkIntervalId);
+  let visible = true;
+  // Use marker.setVisible to avoid messing with icon object references
+  blinkIntervalId = setInterval(() => {
+    marker.setVisible(visible);
+    visible = !visible;
+  }, intervalMs / 2);
+}
 
+function updateActiveMarker(searchId) {
+  if (!searchId) {
+    clearActiveMarker();
+    return;
+  }
+  const idUpper = String(searchId).toUpperCase();
+  const material = allMaterials.find(item => item && item.ID_MATERIAL && String(item.ID_MATERIAL).toUpperCase() === idUpper);
+
+  clearActiveMarker(); // siempre limpiar primero
+  $('material-details').style.display = 'none';
+
+  if (!material || !material.LATITUD || !material.LONGITUD) {
+    $('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
+    return;
+  }
+
+  activeMarkerId = idUpper;
+  const position = { lat: safeParseFloat(material.LATITUD), lng: safeParseFloat(material.LONGITUD) };
+
+  // duración
+  const arrivalDateStr = material.FECHA_ACTUALIZACION;
+  let daysElapsed = 0;
+  let durationText = 'HOY';
+  if (arrivalDateStr && arrivalDateStr !== 'N/A') {
+    daysElapsed = calculateDaysDifference(arrivalDateStr, new Date());
+    if (daysElapsed > 0) durationText = `${daysElapsed} DÍAS`;
+  }
+
+  const contentString = `
+    <div style="font-family: Arial, sans-serif; max-width: 320px;">
+      <h4 style="margin:0;color:#1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+      <p><strong>Estado:</strong> ${material.ESTADO || 'N/A'}</p>
+      <p><strong>Permanencia:</strong> ${durationText}</p>
+      <hr style="border-top:1px solid #eee;margin:8px 0;">
+      <p><strong>Desc:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+      <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+      <p style="font-size:0.8em;color:#777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+    </div>
+  `;
+
+  activeMarker = new google.maps.Marker({
+    position,
+    map,
+    title: `Material: ${material.ID_MATERIAL}`,
+    label: { text: durationText, fontSize: '12px', fontWeight: 'bold', className: 'map-label-background' },
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 9,
+      fillColor: '#FF0000',
+      fillOpacity: 1,
+      strokeWeight: 1,
+      strokeColor: '#cc0000'
+    }
+  });
+
+  const infow = new google.maps.InfoWindow({ content: contentString });
+  activeMarker.addListener('click', () => infow.open(map, activeMarker));
+
+  startBlinking(activeMarker, 3000);
+  map.setCenter(position);
+  map.setZoom(15);
+
+  // mostrar ficha y contador
+  displayMaterialDetails(material.ID_MATERIAL);
+  updateDayCounter(material.FECHA_ACTUALIZACION, position);
+
+  // historial
+  if (Array.isArray(material.HISTORY) && material.HISTORY.length > 0) {
+    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
+  } else {
+    clearHistoryTracking();
+  }
+
+  $('status-message').innerText = `Estado: Material ${material.ID_MATERIAL} ubicado y en seguimiento activo.`;
+}
+
+// -------------------------
+// History map
+// -------------------------
+function clearHistoryTracking() {
+  historyMarkers.forEach(m => m.setMap(null));
+  historyMarkers = [];
+  if (polyline) {
+    polyline.setMap(null);
+    polyline = null;
+  }
+  if (historyMap) $('history-map').style.display = 'none';
+  isHistoryMapManualZoom = false;
+}
+
+function plotHistoricalTracking(historyData, materialId) {
+  clearHistoryTracking();
+  if (!historyMap || !Array.isArray(historyData) || historyData.length === 0) return;
+
+  $('history-map').style.display = 'block';
+  const pathCoordinates = [];
+  const bounds = new google.maps.LatLngBounds();
+
+  // detect manual interaction once
+  if (!isHistoryMapManualZoom) {
+    google.maps.event.addListenerOnce(historyMap, 'zoom_changed', () => { isHistoryMapManualZoom = true; });
+    google.maps.event.addListenerOnce(historyMap, 'center_changed', () => { isHistoryMapManualZoom = true; });
+  }
+
+  const lastUpdateDateStr = (() => {
+    const m = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
+    return m ? m.FECHA_ACTUALIZACION : null;
+  })();
+
+  historyData.forEach((point, idx) => {
+    const lat = safeParseFloat(point.lat, NaN);
+    const lng = safeParseFloat(point.lng, NaN);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    const pos = { lat, lng };
+    pathCoordinates.push(pos);
+    bounds.extend(pos);
+
+    const arrivalDateObj = getValidDate(point.arrival);
+    const arrivalFormatted = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'Fecha N/A';
+
+    // compute duration using next point.arrival or lastUpdateDateStr for last
+    let departureStr = lastUpdateDateStr;
+    const next = historyData[idx + 1];
+    if (next && next.arrival) departureStr = next.arrival;
+
+    const durationDays = (point.arrival && departureStr) ? calculateDaysDifference(point.arrival, departureStr) : 0;
+
+    const mark = new google.maps.Marker({
+      position: pos,
+      map: historyMap,
+      title: `Punto #${idx + 1}: ${arrivalFormatted}`,
+      label: { text: arrivalFormatted, fontSize: '12px', className: 'map-label-background' },
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: idx === historyData.length - 1 ? 8 : 6,
+        fillColor: idx === historyData.length - 1 ? '#FF0000' : '#0000FF',
+        fillOpacity: 0.9,
+        strokeWeight: 1
+      }
+    });
+
+    const content = `
+      <div style="font-size:0.9em;">
+        <strong>Punto #${idx + 1}</strong><br>
+        Arribo: ${arrivalFormatted}<br>
+        Duración: ${durationDays} días
+      </div>
+    `;
+    const iw = new google.maps.InfoWindow({ content });
+    mark.addListener('click', () => iw.open(historyMap, mark));
+    historyMarkers.push(mark);
+  });
+
+  // polyline
+  if (pathCoordinates.length > 1) {
+    polyline = new google.maps.Polyline({
+      path: pathCoordinates,
+      geodesic: true,
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      map: historyMap
+    });
+  }
+
+  if (!isHistoryMapManualZoom && !bounds.isEmpty && !bounds.isEmpty()) {
+    historyMap.fitBounds(bounds);
+  }
+}
+
+// -------------------------
+// Day counter overlay
+// -------------------------
+function updateDayCounter(lastUpdateStr, position) {
+  const overlay = $('day-counter-overlay');
+  if (!activeMarkerId || !lastUpdateStr) {
+    overlay.style.display = 'none';
+    return;
+  }
+  const days = calculateDaysDifference(lastUpdateStr, new Date());
+  if (days <= 0) {
+    overlay.style.display = 'none';
+    return;
+  }
+  overlay.innerText = `${days} días`;
+  overlay.style.display = 'block';
+}
+
+// -------------------------
+// Dictionary search (debounced)
+// -------------------------
+function filterDictionaryInternal(searchTerm) {
+  const selector = $('search-selector');
+  const searchField = selector ? selector.value : 'ID_MATERIAL';
+  const resultsContainer = $('dictionary-results');
+  const resultsList = $('results-list');
+  if (!resultsContainer || !resultsList) return;
+
+  const term = String(searchTerm || '').trim().toLowerCase();
+  if (term.length < 2) {
+    resultsContainer.style.display = 'none';
+    resultsList.innerHTML = '';
+    return;
+  }
+
+  const filtered = allMaterials.filter(material => {
+    const v = (material && (material[searchField] || '')).toString().toLowerCase();
+    return v.includes(term);
+  });
+
+  resultsList.innerHTML = '';
+  if (filtered.length === 0) {
+    resultsContainer.style.display = 'none';
+    return;
+  }
+
+  resultsContainer.style.display = 'block';
+  const fragment = document.createDocumentFragment();
+  filtered.slice(0, 10).forEach(mat => {
+    const li = document.createElement('li');
+    const mid = mat.ID_MATERIAL;
+    const display = mat[searchField] || 'N/A';
+    li.innerHTML = `<a href="#" data-mid="${mid}" class="dict-link"><strong>ID ${mid}</strong></a>: ${display}`;
+    fragment.appendChild(li);
+  });
+  resultsList.appendChild(fragment);
+}
+
+const filterDictionary = debounce(filterDictionaryInternal, 220);
+
+// delegate clicks on dictionary results
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('.dict-link');
+  if (a) {
+    e.preventDefault();
+    const mid = a.getAttribute('data-mid');
+    if (mid) {
+      $('dictionary-results').style.display = 'none';
+      $('search-input').value = '';
+      updateActiveMarker(mid);
+    }
+  }
+});
+
+// -------------------------
+// Keyboard search (enter)
+ // -------------------------
+$('search-input') && $('search-input').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') {
+    const val = $('search-input').value.trim();
+    if (val) updateActiveMarker(val);
+    else clearActiveMarker();
+  }
+});
+
+// -------------------------
+// Start / stop refresh
+// -------------------------
+function startDataRefresh() {
+  // cleanup previo
+  if (dataRefreshIntervalId) {
+    clearInterval(dataRefreshIntervalId);
+    dataRefreshIntervalId = null;
+  }
+  // fetch once immediately
+  fetchMaterialData();
+  // then schedule
+  dataRefreshIntervalId = setInterval(fetchMaterialData, REFRESH_INTERVAL_MS);
+}
+
+function stopDataRefresh() {
+  if (dataRefreshIntervalId) {
+    clearInterval(dataRefreshIntervalId);
+    dataRefreshIntervalId = null;
+  }
+  if (activeFetchController) {
+    activeFetchController.abort();
+    activeFetchController = null;
+  }
+}
+
+// -------------------------
+// Display details
+// -------------------------
+function displayMaterialDetails(materialId) {
+  if (!materialId) {
+    $('material-details').style.display = 'none';
+    return;
+  }
+  const mat = allMaterials.find(it => it && it.ID_MATERIAL && String(it.ID_MATERIAL).toUpperCase() === String(materialId).toUpperCase());
+  const detailsDiv = $('material-details');
+  if (!mat) {
+    detailsDiv.style.display = 'none';
+    return;
+  }
+
+  const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION'];
+  let html = `<h4>Ficha de Datos del Material Activo</h4>`;
+  keysOrder.forEach(k => {
+    if (!mat.hasOwnProperty(k) && (mat[k] === undefined || mat[k] === null)) return;
+    const val = mat[k] || 'N/A';
+    const label = k.replace(/_/g, ' ').toUpperCase();
+    html += `<div class="detail-row"><strong>${label}:</strong> ${val}</div>`;
+  });
+
+  // historial filtrado
+  let historyPoints = Array.isArray(mat.HISTORY) ? mat.HISTORY.filter(p => p && p.arrival && p.lat && p.lng) : [];
+  html += `<h4 style="margin-top:12px;">Historial de Movimientos (${historyPoints.length + 1})</h4>`;
+  historyPoints.forEach((p, i) => {
+    const d = getValidDate(p.arrival);
+    const formatted = d ? d.toLocaleDateString('es-PE') : 'N/A';
+    html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ccc;padding-left:5px;"><strong>#${i+1}</strong>: ${formatted}</div>`;
+  });
+
+  const todayFormatted = (new Date()).toLocaleDateString('es-PE');
+  html += `<div class="detail-row" style="margin-bottom:5px;border-left:3px solid #ff0000;padding-left:5px;"><strong>#${historyPoints.length + 1} (Actual)</strong>: ${todayFormatted} / En Curso</div>`;
+
+  detailsDiv.innerHTML = html;
+  detailsDiv.style.display = 'block';
+}
+
+// -------------------------
+// Cleanup on unload
+// -------------------------
+window.addEventListener('beforeunload', () => {
+  stopDataRefresh();
+  clearActiveMarker();
+});
+
+// -------------------------
+// Init
+// -------------------------
+window.initMap = initMap; // required by maps callback if used
+// If you used the script with callback=initMap, maps will call this. We also call initMap manually just in case
+loadGoogleMapsScript().then(initMap).catch(err => {
+  console.error('Error inicializando mapas:', err);
+});
+
+</script>
 
 
 
