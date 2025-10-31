@@ -45,43 +45,7 @@
 
         /* Estilos para la Mejora 2: Panel lateral y Contenedor Principal */
 
-        .main-container {
 
-            display: flex;
-
-            flex-grow: 1;
-
-        }
-
-        .controls-panel {
-
-            width: 350px; /* Ancho fijo para el panel lateral */
-
-            padding: 15px;
-
-            background-color: #fff;
-
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-
-            display: flex;
-
-            flex-direction: column;
-
-        }
-
-        /* Contenedor de Mapas (Horizontal) */
-
-        .map-container-wrapper {
-
-            flex-grow: 1;
-
-            display: flex;
-
-            flex-direction: column; /* Mapas apilados verticalmente */
-
-            padding-left: 5px;
-
-        }
 
         .map-view {
 
@@ -228,23 +192,9 @@
 
 <body>
 
-
-
-    <header>
-
-        <h1>Sistema de Tracking de Materiales <small>(© aloris)</small></h1>
-
-    </header>
-
-
-
     <div class="main-container">
 
-        
-
         <div class="controls-panel">
-
-            
 
             <div class="search-container">
 
@@ -288,19 +238,34 @@
             <div id="material-details" style="display: none;">
 
                 <h4>Ficha de Datos del Material Activo</h4>
+
             </div>
+
+
+
         </div>
 
         <div class="map-container-wrapper">
 
-            <div id="current-map-wrapper">
-                <div id="current-map" class="map-view" style="width: 100%; height: 500px; position: relative;">               
-                </div>
-            </div>
+                        <div id="current-map-wrapper">
+
+                            <div id="current-map" class="map-view" style="width: 100%; height: 500px; position: relative;">
+                            
+                                                        </div>
+                            </div>
+
                         <div id="day-counter-overlay"></div>
+
                         <div id="history-map" class="map-view"></div>
+
         </div>
+
     </div>
+
+
+
+    
+
 
     <script>
 /*
@@ -710,6 +675,8 @@ function plotHistoricalTracking(historyData, materialId) {
 // -------------------------
 // Day counter overlay
 // -------------------------
+
+
 // -------------------------
 // Day counter overlay (Ajustado)
 // -------------------------
@@ -756,7 +723,8 @@ function updateDayCounter(lastTrackingStr, position, daysElapsed) {
     // C. Agregar listener para reposicionar el overlay cuando el mapa se mueva o se haga zoom
     map.addListener('bounds_changed', repositionOverlay);
 }
-// -------------------------
+
+
 // Dictionary search (debounced)
 // -------------------------
 function filterDictionaryInternal(searchTerm) {
