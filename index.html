@@ -45,7 +45,43 @@
 
         /* Estilos para la Mejora 2: Panel lateral y Contenedor Principal */
 
+        .main-container {
 
+            display: flex;
+
+            flex-grow: 1;
+
+        }
+
+        .controls-panel {
+
+            width: 350px; /* Ancho fijo para el panel lateral */
+
+            padding: 15px;
+
+            background-color: #fff;
+
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+
+            display: flex;
+
+            flex-direction: column;
+
+        }
+
+        /* Contenedor de Mapas (Horizontal) */
+
+        .map-container-wrapper {
+
+            flex-grow: 1;
+
+            display: flex;
+
+            flex-direction: column; /* Mapas apilados verticalmente */
+
+            padding-left: 5px;
+
+        }
 
         .map-view {
 
@@ -192,9 +228,23 @@
 
 <body>
 
+
+
+    <header>
+
+        <h1>Sistema de Tracking de Materiales <small>(© aloris)</small></h1>
+
+    </header>
+
+
+
     <div class="main-container">
 
+        
+
         <div class="controls-panel">
+
+            
 
             <div class="search-container">
 
@@ -245,27 +295,30 @@
 
         </div>
 
+
+
         <div class="map-container-wrapper">
 
-                        <div id="current-map-wrapper">
+            <div id="current-map-wrapper">
 
-                            <div id="current-map" class="map-view" style="width: 100%; height: 500px; position: relative;">
-                            
-                                                        </div>
-                            </div>
+                <div id="current-map" class="map-view" style="width: 100%; height: 500px; position: relative;">
+                <div id="day-counter-overlay"></div>
+                    
+                </div>
+                
+                <div id="day-counter-overlay"></div>
 
-                        <div id="day-counter-overlay"></div>
+            </div>
 
-                        <div id="history-map" class="map-view"></div>
+            
+
+            <div id="history-map" class="map-view"></div>
 
         </div>
 
+        
+
     </div>
-
-
-
-    
-
 
     <script>
 /*
@@ -675,56 +728,50 @@ function plotHistoricalTracking(historyData, materialId) {
 // -------------------------
 // Day counter overlay
 // -------------------------
-
-
-// -------------------------
-// Day counter overlay (Ajustado)
-// -------------------------
 function updateDayCounter(lastTrackingStr, position, daysElapsed) {
     const overlay = $('day-counter-overlay');
-    
-    // 1. CONTROL DE VISIBILIDAD Y LEYENDA (Se añade " DÍAS")
     if (!activeMarkerId || !lastTrackingStr || daysElapsed <= 0) {
         overlay.style.display = 'none';
-        // Limpiar listeners si se oculta
-        google.maps.event.clearListeners(map, 'bounds_changed');
         return;
     }
     
-    // Configura el texto (Incluyendo la palabra "DÍAS") y el estilo
-    overlay.innerText = `${daysElapsed} DÍAS`; 
+    // Configura el texto y el estilo
+    overlay.innerText = `${daysElapsed}`; // Solo el número de días
     overlay.title = `${daysElapsed} días en esta ubicación.`;
     overlay.style.display = 'block';
 
-    // Función que calcula la posición en píxeles
-    const repositionOverlay = () => {
+    // Proyección: Convertir Lat/Lng a píxeles de pantalla (CRÍTICO)
+    const mapDiv = $('current-map');
+    const bounds = map.getBounds();
+    
+    // Wait for the map to be idle/ready
+    google.maps.event.addListenerOnce(map, 'idle', () => {
         const projection = map.getProjection();
         if (!projection) return;
 
-        // Convertir la posición LatLng a un punto de pantalla (relativo al contenedor del mapa)
+        // Convertir la posición LatLng a un punto de pantalla
         const point = projection.fromLatLngToContainerPixel(new google.maps.LatLng(position.lat, position.lng));
 
-        // Ajustar la posición del overlay: Lo colocamos a la derecha del marcador y centrado verticalmente
-        const markerOffset = 15; // Mover 15px a la derecha del centro del marcador
-        const labelHeightHalf = 15; // Aproximadamente la mitad de la altura del overlay (35px/2)
+        // Ajustar la posición del overlay (caja grande)
+        // Lo posicionamos ligeramente a la derecha del marcador central (ej. 15px) y un poco más arriba.
+        const markerSizeOffset = 15; 
+        const labelOffset = 35; // Altura de la caja (para centrar)
 
-        overlay.style.left = `${point.x + markerOffset}px`;
-        overlay.style.top = `${point.y - labelHeightHalf}px`;
-    };
-
-    // 2. ACTIVACIÓN INMEDIATA Y ESCUCHA CONSTANTE
-    
-    // A. Ejecutar inmediatamente al cargar/actualizar el marcador
-    repositionOverlay();
-    
-    // B. Limpiar listeners anteriores para evitar duplicados
-    google.maps.event.clearListeners(map, 'bounds_changed');
-    
-    // C. Agregar listener para reposicionar el overlay cuando el mapa se mueva o se haga zoom
-    map.addListener('bounds_changed', repositionOverlay);
+        overlay.style.left = `${point.x + markerSizeOffset}px`;
+        overlay.style.top = `${point.y - labelOffset}px`;
+        
+        // Listener para mover el overlay cuando se arrastra o hace zoom el mapa
+        google.maps.event.clearListeners(map, 'bounds_changed');
+        map.addListener('bounds_changed', () => {
+            const newProjection = map.getProjection();
+            if (!newProjection) return;
+            const newPoint = newProjection.fromLatLngToContainerPixel(new google.maps.LatLng(position.lat, position.lng));
+            overlay.style.left = `${newPoint.x + markerSizeOffset}px`;
+            overlay.style.top = `${newPoint.y - labelOffset}px`;
+        });
+    });
 }
-
-
+// -------------------------
 // Dictionary search (debounced)
 // -------------------------
 function filterDictionaryInternal(searchTerm) {
