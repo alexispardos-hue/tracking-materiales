@@ -1110,158 +1110,121 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
         }
 
-
-
-        /**
-
-         * Función auxiliar para seleccionar el material desde la lista de diccionario.
-
-         */
-
         window.selectMaterialFromList = function(materialId) {
 
             const searchInput = document.getElementById('search-input');
-
-            
-
             document.getElementById('dictionary-results').style.display = 'none';
-
             searchInput.value = ''; // Limpiamos la caja de búsqueda (opcional)
-
-
-
-            // 1. Mueve el marcador y actualiza el estado.
-
             updateActiveMarker(materialId);
-
         }
 
-
-
-        /**
-
-         * Muestra la ficha de datos completa en el panel lateral.
-
-         */
-
-        function displayMaterialDetails(materialId) {
-
-
-            
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
-            const detailsDiv = document.getElementById('material-details');
-
-            if (!material) {
-                detailsDiv.style.display = 'none';
-                return;
-            }
-
-            detailsDiv.style.display = 'block';
-            let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
-
-            // Iteramos sobre las claves para mostrarlas ordenadamente
-
-            const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION']; // CRÍTICO: Agregamos FECHA_ACTUALIZACION
-
-            
-
-            keysOrder.forEach(key => {
-
-                let value = material[key] || 'N/A';
-
-                // Excluimos las claves si son nulas o no están en el objeto
-
-                if (value === 'N/A' && !material.hasOwnProperty(key)) return;
-                const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
-
-
-                htmlContent += `
-
-                    <div class="detail-row">
-                        <strong>${displayKey}:</strong> ${value}
-                    </div>
-                `;
-            });
-
-
-
-            // CRÍTICO: Lógica de visualización del historial en la ficha
-
-            if (material.HISTORY && material.HISTORY.length > 0) {
-
-                htmlContent += `<h4 style="margin-top: 15px;">Historial de Movimientos (${material.HISTORY.length})</h4>`;
-
-                
-
-                material.HISTORY.forEach((point, index) => {
-                let arrival = point.arrival || 'N/A';
-                let departure = point.departure || 'En Curso';
-                const isCurrentPoint = index === material.HISTORY.length - 1; 
-            
-                // ** CRÍTICO: AJUSTE DEL FORMATO DE FECHA (Requiere getValidDate) **
-                const arrivalDateObj = getValidDate(arrival);
-                arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : arrival; 
-                
-                // ----------------------------------------------------------------
-                // ** APLICAMOS LA LÓGICA DE DÍAS Y LA SALIDA **
-                // ----------------------------------------------------------------
-                let durationDisplay = '';
-                
-                if (isCurrentPoint) {
-                    // Para el punto actual, la salida es "En Curso" y usamos FECHA_ACTUALIZACION para los días
-                    departure = 'En Curso';
-                    const daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, new Date());
-                    durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
-                } else {
-                    // Para puntos históricos, calcula la duración entre arribo y salida
-                    const daysElapsed = calculateDaysDifference(point.arrival, point.departure);
-                    const departureDateObj = getValidDate(departure);
-                    departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
-                    durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
-                }
-            
-                // ----------------------------------------------------------------
-                // ** APLICAMOS LA LÓGICA DE COORDENADAS (Punto 2.1 de tu solicitud) **
-                // ----------------------------------------------------------------
-                let coordsDisplay = '';
-                // Mostrar coordenadas SOLO si NO es el punto actual
-               
-                   if (isCurrentPoint) {
-                    // Para el punto actual, la salida es "En Curso" y usamos FECHA_ACTUALIZACION para los días
-                    departure = 'En Curso';
-                    let daysElapsed = 0;
-                       if (point.arrival) {
-                         daysElapsed = calculateDaysDifference(point.arrival, new Date()); 
-                        } else {
-                            // Fallback: Si el último punto no tiene arrival (como tu data 'N/A'), usar FECHA_ACTUALIZACION.
-                            daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, new Date());
+                            // LÍNEA 994: Función displayMaterialDetails (CORREGIDA)
+                    function displayMaterialDetails(materialId) {
+                        const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+                        const detailsDiv = document.getElementById('material-details');
+                    
+                        if (!material) {
+                            detailsDiv.style.display = 'none';
+                            return;
                         }
-
-                       durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
-                       } else {
-                            // Lógica para puntos históricos (entre arribo y salida) - ESTO ESTÁ CORRECTO.
-                            const daysElapsed = calculateDaysDifference(point.arrival, point.departure);
-                            const departureDateObj = getValidDate(departure);
-                            departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
-                            durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
+                    
+                        detailsDiv.style.display = 'block';
+                        let htmlContent = '<h4>Ficha de Datos del Material Activo</h4>';
+                    
+                        // ... (El bucle keysOrder se mantiene igual para mostrar los datos de la ficha)
+                        const keysOrder = ['ID_MATERIAL', 'ESTADO', 'DESCRIPCION', 'CANTIDAD', 'OC', 'GUIA', 'PLANO_REF', 'LATITUD', 'LONGITUD', 'FECHA_ACTUALIZACION'];
+                        keysOrder.forEach(key => {
+                            let value = material[key] || 'N/A';
+                            if (value === 'N/A' && !material.hasOwnProperty(key)) return;
+                            const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
+                    
+                            htmlContent += `
+                                <div class="detail-row">
+                                    <strong>${displayKey}:</strong> ${value}
+                                </div>
+                            `;
+                        });
+                        // ... (Fin de la ficha de datos)
+                    
+                        // CRÍTICO: Lógica de visualización del historial en la ficha
+                        if (material.HISTORY && material.HISTORY.length > 0) {
+                            htmlContent += `<h4 style="margin-top: 15px;">Historial de Movimientos (${material.HISTORY.length})</h4>`;
+                    
+                            material.HISTORY.forEach((point, index) => {
+                                const isCurrentPoint = index === material.HISTORY.length - 1;
+                                const nextPoint = material.HISTORY[index + 1]; // Para el look-ahead
+                    
+                                let arrival = point.arrival || 'N/A';
+                                let departure = 'En Curso';
+                                let durationDisplay = '';
+                                let daysElapsed = 0;
+                    
+                                // 1. DETERMINAR FECHA DE SALIDA Y CÁLCULO DE DÍAS
+                                
+                                if (nextPoint && nextPoint.arrival) {
+                                    // LÓGICA LOOK-AHEAD: El arribo del siguiente punto es la salida de este.
+                                    departure = nextPoint.arrival;
+                                    daysElapsed = calculateDaysDifference(point.arrival, departure);
+                                    
+                                    // Formato de salida para puntos intermedios
+                                    const departureDateObj = getValidDate(departure);
+                                    departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
+                                    durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
+                    
+                                } else if (isCurrentPoint) {
+                                    // LÓGICA PUNTO ACTUAL: Usamos FECHA_ACTUALIZACION como la "Salida" (si quieres una fecha).
+                                    
+                                    // Si quieres que el último punto muestre la fecha actual en la SALIDA:
+                                    const today = new Date();
+                                    departure = getValidDate(today).toLocaleDateString('es-PE'); // Muestra la fecha de hoy
+                                    
+                                    // Calculamos días desde el ARRIVAL del punto actual hasta HOY.
+                                    if (point.arrival) {
+                                         daysElapsed = calculateDaysDifference(point.arrival, today);
+                                    } else {
+                                         // Fallback al FECHA_ACTUALIZACION si el 'arrival' es nulo
+                                         daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, today);
+                                    }
+                                    
+                                    durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
+                                    
+                                } else {
+                                     // Caso de punto intermedio sin datos de salida (data inconsistente)
+                                     daysElapsed = 0;
+                                     durationDisplay = `<span style="font-weight: bold; color: #777;"> (0 días)</span>`;
+                                }
+                    
+                                // 2. Formato de Arribo (Aplícalo después de calcular la duración)
+                                const arrivalDateObj = getValidDate(arrival);
+                                arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : arrival; 
+                    
+                                // 3. Lógica de Coordenadas (Manteniendo tu estructura)
+                                let coordsDisplay = '';
+                                if (point.lat && point.lng) {
+                                    const lat = parseFloat(point.lat).toFixed(4);
+                                    const lng = parseFloat(point.lng).toFixed(4);
+                                    
+                                    if (isCurrentPoint) {
+                                        coordsDisplay = ' (Posición Actual)'; 
+                                    } else {
+                                        coordsDisplay = `(${lat},${lng})`;
+                                    }
+                                }
+                    
+                                // 4. Construcción HTML
+                                htmlContent += `
+                                    <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
+                                        <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
+                                    </div>
+                                `;
+                            });
                         }
-                                            
-   
-            htmlContent += `
-                    <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
-                        <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
-                    </div>
-                `;
-                });
-            }
-            
-            // Finalmente, actualiza el contenido y cierra la función
-            detailsDiv.innerHTML = htmlContent;
-        } // <-- CIERRE CORRECTO DE displayMaterialDetails
-        
-        // ... (el resto de tu código, como loadGoogleMapsScript(), iría después)
-        
-        // Llama a la carga inicial de Google Maps
+                    
+                        // Finalmente, actualiza el contenido
+                        detailsDiv.innerHTML = htmlContent;
+                        } // <-- CIERRE CORRECTO DE displayMaterialDetails
+
+        
         loadGoogleMapsScript();
 
     </script>
