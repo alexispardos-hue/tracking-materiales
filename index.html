@@ -340,25 +340,21 @@
 
         // Variables globales del estado del sistema
 
-        let map;
-
-        let historyMap; // <--- CRÍTICO: Añadir el mapa histórico a las variables globales
-
-        let allMaterials = [];
-
-        let activeMarker = null; // Marcador actualmente visible
-
-        let activeMarkerId = null; // ID del material activo
-
-        let blinkInterval = null; // CRÍTICO: Variable para controlar el intervalo de parpadeo (3s)
-
-        let historyMarkers = []; // <--- CRÍTICO: Marcadores de puntos históricos
-
-        let polyline = null; // <--- CRÍTICO: Polilínea del tracking
-
-        let initialLoad = true; // CRÍTICO: Bandera para controlar la carga inicial
 
 
+    
+
+let map;
+let historyMap; // Mapa de Tracking Histórico
+let allMaterials = [];
+let activeMaterial = null; // Objeto del material activo
+let activeMarker = null; 
+let activeMarkerId = null; // ID del material activo
+let blinkInterval = null; 
+let historyMarkers = []; 
+let polyline = null; 
+let initialLoad = true; 
+const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
         // Carga la API de Google Maps de forma asíncrona
 
@@ -375,44 +371,24 @@
         }
 
 
-
         // 2. FUNCIÓN DE INICIALIZACIÓN DEL MAPA
-
         window.initMap = function() {
-
             // Coordenadas por defecto (Ej: Lima, Perú, para centralizar el inicio)
-
             const defaultLocation = { lat: -12.0464, lng: -77.0428 }; 
-
-
-
             map = new google.maps.Map(document.getElementById('current-map'), {
-
                 zoom: 12,
-
                 center: defaultLocation,
-
                 mapId: 'DEMO_MAP_ID_CURRENT' // Puede ser sustituido por un ID de mapa personalizado
-
             });
 
-
-
             // 2. Mapa de Tracking Histórico (Contenedor: history-map)
-
             historyMap = new google.maps.Map(document.getElementById('history-map'), { // <--- CRÍTICO: Inicialización del mapa histórico
 
                 zoom: 12,
-
                 center: defaultLocation,
-
                 mapId: 'DEMO_MAP_ID_HISTORY' 
 
             });
-
-
-
-            
 
             // Inicia la actualización periódica
 
@@ -423,28 +399,18 @@
         }
 
 
-
         // 3. FUNCIÓN PARA RECUPERAR DATOS DEL ENDPOINT (ROBUSTA)
 
         async function fetchMaterialData() {
-
             try {
-
-                const response = await fetch(ENDPOINT_URL);
-
-                const data = await response.json();
-
-                
+             const response = await fetch(ENDPOINT_URL);
+                const data = await response.json();                
 
                 if (data.status === 'success') {
-
                     // FILTRADO ROBUSTO: Excluye cualquier objeto sin ID_MATERIAL (filas vacías/nulas)
-
                     allMaterials = data.data.filter(item => item && item.ID_MATERIAL); 
 
-                    
-
-                    // CRÍTICO: ACTUALIZA EL ESTADO AQUÍ, SOLO DESPUÉS DE LA PRIMERA CARGA EXITOSA
+                       // CRÍTICO: ACTUALIZA EL ESTADO AQUÍ, SOLO DESPUÉS DE LA PRIMERA CARGA EXITOSA
 
                     if (initialLoad) {
 
@@ -458,14 +424,11 @@
 
                     }
 
-
-
                     // Si ya hay un material activo, actualiza solo ese marcador
 
                     if (activeMarkerId) {
 
                         updateActiveMarker(activeMarkerId);
-
                     }
 
                 } else {
@@ -512,12 +475,9 @@
 
             }
 
-
-
             updateActiveMarker(searchId);
 
         }
-
 
 
         // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR (CORREGIDA)
@@ -527,7 +487,6 @@
             // Busca el material usando las claves limpias del Apps Script
 
             const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
-
 
 
             // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
@@ -553,7 +512,6 @@
                 };
 
 
-
                 // -------------------------------------------------------------
 
                 // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
@@ -568,9 +526,7 @@
 
                         <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
 
-                        <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>
-
-                        
+                        <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>      
 
                         <hr style="border-top: 1px solid #eee; margin: 8px 0;">
 
@@ -731,17 +687,10 @@
         function calculateDaysDifference(startDateStr, endDateStr) {
 
             const oneDay = 24 * 60 * 60 * 1000;
-
-
-
-
-
             const fechaLlegadaStr = materialActual.FECHA_ACTUALIZACION; // Ejemplo: "2025-10-15"
-
             const fechaHoy = new Date(); // La fecha actual
 
             
-
             // 1. Convertir la cadena de llegada a objeto Date
 
             // Importante: Usar formato YYYY-MM-DD para compatibilidad. Si tu Apps Script no da este formato, ajústalo.
@@ -749,13 +698,11 @@
             const fechaLlegada = new Date(fechaLlegadaStr); 
 
             
-
-            // 2. Realizar la resta (obtiene la diferencia en milisegundos)
+           // 2. Realizar la resta (obtiene la diferencia en milisegundos)
 
             const diferenciaMilisegundos = fechaHoy.getTime() - fechaLlegada.getTime();
 
             
-
             // 3. Convertir milisegundos a días
 
             // (Milisegundos por segundo * Segundos por minuto * Minutos por hora * Horas por día)
@@ -1134,7 +1081,6 @@
 
         }
 
-        
 
         // ==========================================================
 
@@ -1366,13 +1312,9 @@
 
             }
 
-            
-
-            detailsDiv.innerHTML = htmlContent;
+                   detailsDiv.innerHTML = htmlContent;
 
         }
-
-
 
         // Inicia el proceso de carga del script de Google Maps
 
@@ -1381,10 +1323,6 @@
     </script>
 
 
-
-
-
-    
 
 </body>
 
