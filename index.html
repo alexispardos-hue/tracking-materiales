@@ -765,174 +765,134 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
         // 6. LÓGICA DE TRACKING HISTÓRICO
 
-        function plotHistoricalTracking(historyData, materialId) {
-
-            clearHistoryTracking(); 
-
-            document.getElementById('history-map').style.display = 'block'; // <--- CRÍTICO: Hacer visible el mapa histórico
-
-            const pathCoordinates = [];
-
-            const bounds = new google.maps.LatLngBounds();
-
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
-
+           function plotHistoricalTracking(historyData, materialId) {
+                // ----------------------------------------------------------------------------------
+                // NOTA: Se ha reintroducido la lógica de formateo y cálculo de duración, 
+                // pero los mostradores solo usarán la FECHA DE ARRIBO, como se indica.
+                // ----------------------------------------------------------------------------------
             
-
-            // La fecha del último punto (posición actual) es la fecha de la última actualización en la hoja
-
-            const lastUpdateDateStr = material.FECHA_ACTUALIZACION; 
-
-
-
-            historyData.forEach((point, index) => {
-
-                const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
-                pathCoordinates.push(position);
-                bounds.extend(position);
-                let durationDays = 0;
-                let departureStr = point.departure; // Por defecto usa el campo 'departure' si existe
-                const nextPoint = historyData[index + 1]; // Obtener el siguiente punto
-                // 1. Determinar Fecha de Salida (Look-Ahead)
+                clearHistoryTracking(); 
+                document.getElementById('history-map').style.display = 'block'; // <--- CRÍTICO: Hacer visible el mapa histórico
+                const pathCoordinates = [];
+                const bounds = new google.maps.LatLngBounds();
+                const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === materialId.toUpperCase());
+                
+                // La fecha del último punto (posición actual) es la fecha de la última actualización en la hoja
+                const lastUpdateDateStr = material.FECHA_ACTUALIZACION; 
+            
+                historyData.forEach((point, index) => {
+                    const position = { lat: parseFloat(point.lat), lng: parseFloat(point.lng) };
+                    pathCoordinates.push(position);
+                    bounds.extend(position);
+                    
+                    // ** 1. LÓGICA DE FECHAS Y DURACIÓN (Mantenida por si se requiere, pero solo se usa ARRIVAL)**
+                    let durationDays = 0;
+                    let departureStr = point.departure; 
+                    const nextPoint = historyData[index + 1]; 
+            
+                    // 1a. Determinar Fecha de Salida (Look-Ahead)
                     if (nextPoint && nextPoint.arrival) {
-                        // Si hay un punto siguiente válido, su arribo es la salida de este punto.
                         departureStr = nextPoint.arrival; 
                     } else if (index === historyData.length - 1) {
                         // Si es el ÚLTIMO punto, la salida es la fecha de la última actualización de la hoja.
                         departureStr = lastUpdateDateStr; 
                     }
-                
-                    // 2. Calcular duración
+                    
+                    // 1b. Formateo de Fecha de Arribo (Crucial para el Label/InfoWindow)
+                    const arrivalDateObj = getValidDate(point.arrival);
+                    const arrivalFormatted = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : 'Fecha N/A';
+                    
+                    // 1c. Calcular duración (solo para el InfoWindow, si se quiere mostrar)
                     if (point.arrival && departureStr) {
-                        // Usar ARRIVAL del punto actual y la fecha de SALIDA calculada (next arrival o lastUpdateDate)
-                        durationDays = calculateDaysDifference(point.arrival, departureStr); 
+                        durationDays = calculateDaysDifference(point.arrival, departureStr);
                     }
-
-                // Si no hay departure, es el punto actual (el último en el array)
-
-                if (!departureStr) {
-
-                    // El último segmento es desde el arribo hasta la fecha de la última actualización del material
-
-                    departureStr = lastUpdateDateStr; 
-
-                }
-
-                
-
-                // Calcular duración
-
-                if (point.arrival && departureStr) {
-
-                    durationDays = calculateDaysDifference(point.arrival, departureStr);
-
-                }
-
-                
-
-                const infoContent = `
-
-                    <div style="font-size: 0.9em;">
-
-                        <strong>Punto Histórico ${index + 1}</strong><br>
-
-                        Arribo: ${point.arrival || 'N/A'}<br>
-
-                        Salida: ${point.departure || 'AÚN EN ESTE PUNTO'}<br>
-
-                        <span style="font-weight: bold; color: ${durationDays > 0 ? 'blue' : 'black'};">Duración: ${durationDays} días</span>
-
-                    </div>
-
-                `;
-
-
-
-                // Si es el ÚLTIMO PUNTO (posición actual), no creamos marcador duplicado, ya lo hace el mapa superior.
-
-                if (index === historyData.length - 1) {
-
-                    // Se puede marcar el último punto en el mapa histórico con un icono distinto si se desea
-
-                    // Por ahora, solo se usa para la polilínea.
-
-                    return; 
-
-                }
-
-
-
-                // Marcador Histórico (Azul)
-
-                const marker = new google.maps.Marker({
-
-                    position: position,
-
-                    map: historyMap,
-
-                    title: `Histórico Punto ${index + 1}: ${point.arrival}`,
-
-                    icon: {
-
-                        path: google.maps.SymbolPath.CIRCLE,
-
-                        scale: 6,
-
-                        fillColor: '#0000FF',
-
-                        fillOpacity: 0.8,
-
-                        strokeWeight: 1,
-
-                        strokeColor: '#0000CC'
-
+            
+                    // Si es el ÚLTIMO PUNTO (posición actual), no creamos marcador histórico duplicado.
+                    if (index === historyData.length - 1) {
+                        // Marcador especial para el punto actual (posiblemente un ícono distinto, opcional)
+                        const currentContent = `
+                            <div style="font-size: 0.9em;">
+                                <strong>POSICIÓN ACTUAL (#${index + 1})</strong><br>
+                                Arribo Histórico: ${arrivalFormatted}<br>
+                                <span style="font-weight: bold; color: green;">En curso desde hace: ${durationDays} días</span>
+                            </div>
+                        `;
+                        // Crear el marcador del punto actual si se desea diferenciarlo en el mapa histórico.
+                        const currentMarker = new google.maps.Marker({
+                            position: position,
+                            map: historyMap,
+                            title: `POSICIÓN ACTUAL: ${arrivalFormatted}`,
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 8,
+                                fillColor: '#FF0000', // Rojo
+                                fillOpacity: 0.9,
+                                strokeWeight: 1,
+                                strokeColor: '#000000'
+                            }
+                        });
+                        historyMarkers.push(currentMarker);
+                        const currentInfoWindow = new google.maps.InfoWindow({ content: currentContent });
+                        currentMarker.addListener('click', () => { currentInfoWindow.open(historyMap, currentMarker); });
+            
+                        return; 
                     }
-
+                    
+                    // ** 2. CREACIÓN DEL MARCADOR HISTÓRICO CON LA FECHA DE ARRIBO EN LA ETIQUETA **
+                    const infoContent = `
+                        <div style="font-size: 0.9em;">
+                            <strong>Punto Histórico #${index + 1}</strong><br>
+                            Fecha de Arribo: <strong>${arrivalFormatted}</strong><br>
+                            Duración: ${durationDays} días
+                        </div>
+                    `;
+            
+                    // Marcador Histórico (Azul) - Se usa la propiedad 'label' para mostrar la fecha
+                    const marker = new google.maps.Marker({
+                        position: position,
+                        map: historyMap,
+                        title: `Punto #${index + 1}: ${arrivalFormatted}`,
+                        // CRÍTICO: Aquí inyectamos la fecha formateada
+                        label: {
+                            text: arrivalFormatted, // Muestra la fecha como texto sobre el marcador
+                            fontWeight: 'bold',
+                            color: '#000000' // Color de la fuente
+                        },
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 6,
+                            fillColor: '#0000FF',
+                            fillOpacity: 0.8,
+                            strokeWeight: 1,
+                            strokeColor: '#0000CC'
+                        }
+                    });
+                    
+                    historyMarkers.push(marker);
+            
+                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
+                    marker.addListener('click', () => { infoWindow.open(historyMap, marker); });
+                }); // Fin del forEach
+            
+                // Dibuja la polilínea (Mantenido)
+                polyline = new google.maps.Polyline({
+                    path: pathCoordinates,
+                    geodesic: true,
+                    strokeColor: '#0000FF',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    map: historyMap
                 });
-
-                
-
-                historyMarkers.push(marker);
-
-
-
-                const infoWindow = new google.maps.InfoWindow({ content: infoContent });
-
-                marker.addListener('click', () => { infoWindow.open(historyMap, marker); });
-
-            });
-
-
-
-            // Dibuja la polilínea
-
-            polyline = new google.maps.Polyline({
-
-                path: pathCoordinates,
-
-                geodesic: true,
-
-                strokeColor: '#0000FF',
-
-                strokeOpacity: 0.8,
-
-                strokeWeight: 2,
-
-                map: historyMap
-
-            });
-
-
-
-            // Ajusta el zoom del mapa histórico
-
-            if (!bounds.isEmpty()) {
-
-                historyMap.fitBounds(bounds);
-
+            
+                // Ajusta el zoom del mapa histórico (Mantenido)
+                if (!bounds.isEmpty()) {
+                    historyMap.fitBounds(bounds);
+                }
             }
+                 
 
-        }
+        
+        // fin de plothisotricatracngikg
 
         
 
