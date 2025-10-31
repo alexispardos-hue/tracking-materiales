@@ -930,36 +930,43 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
         // 8. LÓGICA DEL CONTADOR DE DÍAS (SUPERPUESTO)
 
-        function updateDayCounter(lastUpdateStr, position) {
-            // Aseguramos que tenemos un material activo y una posición
-            if (!activeMarkerId) {
-                document.getElementById('day-counter-overlay').style.display = 'none';
-                return;
-            }
-        
-            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === activeMarkerId.toUpperCase());
-            // CRÍTICO: Usamos FECHA_ACTUALIZACION del material, ya que Apps Script la actualiza.
-            const arrivalDateStr = material.FECHA_ACTUALIZACION;
-            if (!arrivalDateStr || arrivalDateStr === 'N/A') { 
+            function updateDayCounter(lastUpdateStr, position) {
+                if (!activeMarkerId) {
                     document.getElementById('day-counter-overlay').style.display = 'none';
                     return;
                 }
             
-                const daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
-                const counterDiv = document.getElementById('day-counter-overlay');
+                const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === activeMarkerId.toUpperCase());
                 
-                if (daysElapsed === 'N/A' || daysElapsed <= 0) { // Ahora debe ser daysElapsed <= 0 (si es 5 es > 0)
-                    counterDiv.style.display = 'none';
+                // Si tienes un historial (HISTORY) queremos usar el ARRIVAL del ÚLTIMO punto.
+                let startDateStr = material.FECHA_ACTUALIZACION; // Fallback
+                
+                if (material.HISTORY && material.HISTORY.length > 0) {
+                    const lastPoint = material.HISTORY[material.HISTORY.length - 1];
+                    if (lastPoint && lastPoint.arrival) {
+                        startDateStr = lastPoint.arrival; // Usar el ARRIVAL del punto actual
+                    }
+                }
+            
+                if (!startDateStr || startDateStr === 'N/A') { 
+                    document.getElementById('day-counter-overlay').style.display = 'none';
                     return;
                 }
-                        
-            // CRÍTICO: El último punto del historial es la posición actual.
-            // La fecha de arribo de ese punto es la fecha de la hoja (que es la última vez que se movió)
-                    counterDiv.innerText = `${daysElapsed} días`;
+            
+                // CRÍTICO: Usar la fecha de ARRIVAL del punto actual hasta HOY.
+                const daysElapsed = calculateDaysDifference(startDateStr, new Date()); 
+                const counterDiv = document.getElementById('day-counter-overlay');
+            
+                if (daysElapsed === 'N/A' || isNaN(daysElapsed) || daysElapsed < 0) {
+                    // Mostrar 1 día si es el mismo día (si el arribo es hoy)
+                    counterDiv.innerText = `1 día`;
                     counterDiv.style.display = 'block';
-
+                    return;
+                }
+            
+                counterDiv.innerText = `${daysElapsed} días`;
+                counterDiv.style.display = 'block';
             }
-
             
 
         function clearActiveMarker() {
@@ -1141,9 +1148,9 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                 const displayKey = key.replace(/_/g, ' ').toUpperCase(); 
         
                 htmlContent += `
-                    <div class="detail-row">
-                        <strong>${displayKey}:</strong> ${value}
-                    </div>
+                <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
+                <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
+                </div>
                 `;
             });
             // ... (Fin de la ficha de datos)
@@ -1219,15 +1226,15 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                     arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : arrival; 
         
                     // 3. Lógica de Coordenadas (Mostrar solo etiqueta en el punto actual)
-                    let coordsDisplay = '';
+                     let coordsDisplay = '';
                     if (isCurrentPoint) {
                         coordsDisplay = ' (Posición Actual)'; 
                     } else {
+                        // ESTO DEBE ESTAR AHÍ. SOLO MUESTRA COORDENADAS SI NO ES EL PUNTO ACTUAL.
                         const lat = parseFloat(point.lat).toFixed(4);
                         const lng = parseFloat(point.lng).toFixed(4);
                         coordsDisplay = `(${lat},${lng})`; 
                     }
-        
                     // 4. Construcción HTML
                     htmlContent += `
                         <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
