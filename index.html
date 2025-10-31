@@ -484,117 +484,161 @@ let isHistoryMapManualZoom = false;
 
         // 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR (CORREGIDA)
 
-// 5. FUNCIÓN CRÍTICA DE ACTUALIZACIÓN DE MARCADOR (CORREGIDA)
-function updateActiveMarker(searchId) {
+        function updateActiveMarker(searchId) {
 
-    // Busca el material usando las claves limpias del Apps Script
-    const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
+            // Busca el material usando las claves limpias del Apps Script
 
-
-    // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
-    clearActiveMarker(); 
-    document.getElementById('material-details').style.display = 'none'; // Oculta ficha anterior
+            const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
 
 
-    if (material && material.LATITUD && material.LONGITUD) {
-        activeMarkerId = searchId; // Establece el ID activo
-        
-        const position = { 
-            lat: parseFloat(material.LATITUD), 
-            lng: parseFloat(material.LONGITUD) 
-        };
+            // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
 
-        // ** CRÍTICO: LÓGICA DE CÁLCULO DE DURACIÓN (#4 vs #3) **
-        const arrivalDateStr = material.FECHA_ACTUALIZACION; // Fecha de Posición #3
-        let durationLabel = '';
-        let daysElapsed = 0;
-        
-        if (arrivalDateStr && arrivalDateStr !== 'N/A') {
-            // Reutiliza la función global
-            daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
-            
-            if (daysElapsed > 0) {
-                durationLabel = `${daysElapsed} DÍAS`;
+            clearActiveMarker(); 
+
+            document.getElementById('material-details').style.display = 'none'; // Oculta ficha anterior
+
+
+
+            if (material && material.LATITUD && material.LONGITUD) {
+
+                activeMarkerId = searchId; // Establece el ID activo
+
+                
+                    const position = { 
+                    lat: parseFloat(material.LATITUD), 
+                    lng: parseFloat(material.LONGITUD) 
+
+                };
+                        const arrivalDateStr = material.FECHA_ACTUALIZACION; // Fecha de Posición #3
+                        let durationLabel = '';
+                        let daysElapsed = 0;
+                        
+                        if (arrivalDateStr && arrivalDateStr !== 'N/A') {
+                            // Reutiliza la función global
+                            daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
+                            
+                            if (daysElapsed > 0) {
+                                durationLabel = `${daysElapsed} DÍAS`;
+                            }
+                        }
+
+                // -------------------------------------------------------------
+
+                // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
+
+                // -------------------------------------------------------------
+
+                const contentString = `
+
+                    <div style="font-family: Arial, sans-serif; max-width: 300px;">
+
+                        <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
+                        <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
+                        <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>      
+                        <hr style="border-top: 1px solid #eee; margin: 8px 0;">
+                        <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
+                        <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
+                        <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
+                        <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
+                        <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
+                    </div>`;
+
+                // Crea el nuevo marcador 
+
+                activeMarker = new google.maps.Marker({
+
+                    position: position,
+
+                    map: map,
+
+                    title: material.ID_MATERIAL,
+
+                    icon: {
+
+                        path: google.maps.SymbolPath.CIRCLE,
+
+                        scale: 10,
+
+                        fillColor: '#FF0000',
+
+                        fillOpacity: 0.9,
+
+                        strokeWeight: 0,
+
+                    }
+
+                });
+
+
+
+                // *** INICIA EL EFECTO DE PARPADEO (3 segundos) ***
+
+                startBlinking(activeMarker, 3000); 
+
+                
+
+                // Centra el mapa en la nueva posición y establece un zoom adecuado
+
+                map.setCenter(position);
+
+                map.setZoom(15); 
+
+                // Añade la información en un infowindow
+
+                const infoWindow = new google.maps.InfoWindow({
+
+                    content: contentString
+
+                });
+
+
+
+                activeMarker.addListener('click', () => {
+
+                    infoWindow.open(map, activeMarker);
+
+                });
+
+
+
+                // CRÍTICO: Llamada para mostrar la ficha de datos
+
+                displayMaterialDetails(searchId); 
+
+                
+
+                // CRÍTICO: Llamada para actualizar el contador de días
+
+                updateDayCounter(material.FECHA_ACTUALIZACION, position);
+
+
+
+                // Asumiendo que el material tiene un historial (HISTORY)
+
+                if (material.HISTORY && material.HISTORY.length > 0) {
+
+                    plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
+
+                } else {
+
+                    clearHistoryTracking();
+
+                }
+
+
+
+                document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado y en seguimiento activo.`;
+
+
+
+            } else {
+
+                document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
+
             }
-        }
-        
-        // -------------------------------------------------------------
-        // ** GENERACIÓN DEL CONTENT STRING CON CELDAS AÑADIDAS **
-        // -------------------------------------------------------------
-        const contentString = `
-            <div style="font-family: Arial, sans-serif; max-width: 300px;">
-                <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
-                <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>  
-                <p><strong>Permanencia (Punto #3 al #4):</strong> <span style="font-weight: bold; color: ${daysElapsed > 0 ? 'red' : 'green'};">${durationLabel || 'Hoy'}</span></p>
-                <hr style="border-top: 1px solid #eee; margin: 8px 0;">
-                <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-                <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-                <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
-                <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
-                <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
-                <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
-            </div>`;
 
-
-        // Crea el nuevo marcador 
-        activeMarker = new google.maps.Marker({
-            position: position,
-            map: map,
-            title: `Material: ${material.ID_MATERIAL}. Permanencia: ${durationLabel || 'Menos de 1 día'}`,
-            // ** CRÍTICO: ETIQUETA DE DURACIÓN **
-            label: {
-                text: durationLabel || 'HOY', // Muestra los días o 'HOY' si es día 0
-                fontSize: '14px',
-                fontWeight: 'bold',
-                color: '#000000', // Color de texto negro
-                className: 'map-label-background' // Reutiliza el estilo de fondo para visibilidad
-            },
-            labelOrigin: new google.maps.Point(0, -15), // Levanta la etiqueta 15px por encima del punto
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: '#FF0000',
-                fillOpacity: 0.9,
-                strokeWeight: 0,
-            }
-        });
-
-
-        // *** INICIA EL EFECTO DE PARPADEO (3 segundos) ***
-        startBlinking(activeMarker, 3000); 
-        
-        // Centra el mapa en la nueva posición y establece un zoom adecuado
-        map.setCenter(position);
-        map.setZoom(15); 
-        
-        // Añade la información en un infowindow
-        const infoWindow = new google.maps.InfoWindow({
-            content: contentString
-        });
-
-        activeMarker.addListener('click', () => {
-            infoWindow.open(map, activeMarker);
-        });
-
-        // CRÍTICO: Llamada para mostrar la ficha de datos
-        displayMaterialDetails(searchId); 
-        
-        // CRÍTICO: Ya no es estrictamente necesario, pero lo mantenemos si usa el overlay HTML
-        updateDayCounter(material.FECHA_ACTUALIZACION, position);
-
-        // Asumiendo que el material tiene un historial (HISTORY)
-        if (material.HISTORY && material.HISTORY.length > 0) {
-            plotHistoricalTracking(material.HISTORY, material.ID_MATERIAL);
-        } else {
-            clearHistoryTracking();
         }
 
-        document.getElementById('status-message').innerText = `Estado: Material ${searchId} ubicado y en seguimiento activo.`;
-
-    } else {
-        document.getElementById('status-message').innerText = `Advertencia: Material ${searchId} no encontrado o sin coordenadas válidas.`;
-    }
-}
 
 
 
