@@ -357,7 +357,7 @@ let polyline = null;
 let initialLoad = true; 
 const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 let isHistoryMapManualZoom = false;
-        
+let durationInfoWindow = null;        
         // Carga la API de Google Maps de forma asíncrona
 
         function loadGoogleMapsScript() {
@@ -489,15 +489,15 @@ let isHistoryMapManualZoom = false;
             // Busca el material usando las claves limpias del Apps Script
 
             const material = allMaterials.find(item => item && item.ID_MATERIAL && item.ID_MATERIAL.toUpperCase() === searchId);
-
-
+               if (durationInfoWindow) { // Sólo se referencia, no se declara
+        durationInfoWindow.close();
+        durationInfoWindow = null; 
+            }
             // Limpia el marcador y el ID anterior antes de proceder (limpia el parpadeo)
 
             clearActiveMarker(); 
 
             document.getElementById('material-details').style.display = 'none'; // Oculta ficha anterior
-
-
 
             if (material && material.LATITUD && material.LONGITUD) {
 
