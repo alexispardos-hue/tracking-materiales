@@ -954,34 +954,6 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
 
             
 
-            // Calculamos la diferencia entre la fecha de arribo (HOJA) y HOY (Fecha actual del sistema)
-
-            const daysElapsed = calculateDaysDifference(arrivalDate, new Date().toISOString().split('T')[0]);
-
-            const counterDiv = document.getElementById('day-counter-overlay');
-
-            
-
-            if (daysElapsed === 'N/A' || daysElapsed < 0) {
-
-                counterDiv.style.display = 'none';
-
-                return;
-
-            }
-
-
-
-            counterDiv.innerText = `${daysElapsed} días`;
-
-            counterDiv.style.display = 'block';
-
-        }
-
-        
-
-        // 7. FUNCIÓN DE LIMPIEZA
-
         function clearActiveMarker() {
 
             if (activeMarker) {
@@ -1257,22 +1229,21 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                 }
    
             htmlContent += `
-                    <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
-                        <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
-                    </div>
-                                `;
-
-                });
-
-            }
-
-                   detailsDiv.innerHTML = htmlContent;
-
-        }
-
-        // Inicia el proceso de carga del script de Google Maps
-
-        loadGoogleMapsScript();
+                    <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
+                        <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
+                    </div>
+                `;
+                });
+            }
+            
+            // Finalmente, actualiza el contenido y cierra la función
+            detailsDiv.innerHTML = htmlContent;
+        } // <-- CIERRE CORRECTO DE displayMaterialDetails
+        
+        // ... (el resto de tu código, como loadGoogleMapsScript(), iría después)
+        
+        // Llama a la carga inicial de Google Maps
+        loadGoogleMapsScript();
 
     </script>
 
