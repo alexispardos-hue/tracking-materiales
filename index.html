@@ -504,15 +504,23 @@ let isHistoryMapManualZoom = false;
                 activeMarkerId = searchId; // Establece el ID activo
 
                 
-
-                const position = { 
-
+                    const position = { 
                     lat: parseFloat(material.LATITUD), 
-
                     lng: parseFloat(material.LONGITUD) 
 
                 };
-
+                        const arrivalDateStr = material.FECHA_ACTUALIZACION; // Fecha de Posición #3
+                        let durationLabel = '';
+                        let daysElapsed = 0;
+                        
+                        if (arrivalDateStr && arrivalDateStr !== 'N/A') {
+                            // Reutiliza la función global
+                            daysElapsed = calculateDaysDifference(arrivalDateStr, new Date()); 
+                            
+                            if (daysElapsed > 0) {
+                                durationLabel = `${daysElapsed} DÍAS`;
+                            }
+                        }
 
                 // -------------------------------------------------------------
 
@@ -525,32 +533,15 @@ let isHistoryMapManualZoom = false;
                     <div style="font-family: Arial, sans-serif; max-width: 300px;">
 
                         <h4 style="margin-top: 0; color: #1a73e8;">Material: ${material.ID_MATERIAL}</h4>
-
                         <p><strong>Descripción:</strong> ${material.DESCRIPCION || 'N/A'}</p>
-
                         <p><strong>Estado:</strong> <span style="font-weight: bold; color: green;">${material.ESTADO || 'N/A'}</span></p>      
-
                         <hr style="border-top: 1px solid #eee; margin: 8px 0;">
-
-                        
-
                         <p><strong>Cantidad:</strong> ${material.CANTIDAD || 'N/A'}</p>
-
                         <p><strong>OC:</strong> ${material.OC || 'N/A'}</p>
-
                         <p><strong>Guía:</strong> ${material.GUIA || 'N/A'}</p>
-
                         <p><strong>Plano Ref:</strong> ${material.PLANO_REF || 'N/A'}</p>
-
-                        
-
                         <p style="font-size: 0.8em; color: #777;">Lat/Lng: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}</p>
-
                     </div>`;
-
-
-
-
 
                 // Crea el nuevo marcador 
 
@@ -591,8 +582,6 @@ let isHistoryMapManualZoom = false;
                 map.setCenter(position);
 
                 map.setZoom(15); 
-
-                
 
                 // Añade la información en un infowindow
 
