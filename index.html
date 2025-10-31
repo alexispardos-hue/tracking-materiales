@@ -107,24 +107,25 @@
 
         #day-counter-overlay {
 
-        /* CRÍTICO: Debe ser absoluto y tener un z-index alto */
-            position: absolute;
+           position: absolute;
             z-index: 1000; 
             
-            /* Diseño del Cuadro Grande */
-            background-color: #333; /* Fondo oscuro */
-            color: #FFF; /* Texto blanco */
-            border: 3px solid #FFC107; /* Borde amarillo para resaltar */
+            /* Centrado Horizontal Forzado */
+            left: 0; /* Aseguramos que la manipulación de posición sea pura */
+            margin-left: 0 !important; /* Anula cualquier margen automático */
+            transform: translate(-50%, 0); /* CRÍTICO: Mueve la caja 50% de su ancho a la izquierda */
+        
+            /* Estilos Visuales */
+            background-color: #333; 
+            color: #FFF; 
+            border: 3px solid #FFC107; 
             padding: 8px 12px;
             border-radius: 8px;
-            font-size: 20px; /* Tamaño de fuente grande */
+            font-size: 20px; 
             font-weight: bold;
             text-align: center;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-            
-            /* Inicialmente oculto */
-            display: none;
-            transform: translate(-50%, 0);            
+            display: none;        
             
                 }
 
