@@ -1230,7 +1230,7 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
     if (point.lat && point.lng) {
         const lat = parseFloat(point.lat).toFixed(4);
         const lng = parseFloat(point.lng).toFixed(4);
-        coordsDisplay = `(${lat},${lng})`;
+        coordsDisplay = `(Posición Actual)`;
     }
     
     // Ajustar el display de duración y estilo (rojo para actual, azul para histórico)
@@ -1243,8 +1243,8 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
         <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${border}; padding-left: 5px;">
             <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
         </div>
-    `;
-});
+                `;
+            });
             }
             
             // Finalmente, actualiza el contenido y cierra la función
