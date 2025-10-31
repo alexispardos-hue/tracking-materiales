@@ -714,9 +714,9 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                 }
             
                 const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                
+                const days = Math.round(diffTime / oneDay);
+                return days;
                 // El redondeo es crucial para evitar errores de huso horario.
-                return Math.round(diffTime / oneDay); 
             }
             //              
 
@@ -1149,75 +1149,71 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                         // CRÍTICO: Lógica de visualización del historial en la ficha
                         if (material.HISTORY && material.HISTORY.length > 0) {
                             htmlContent += `<h4 style="margin-top: 15px;">Historial de Movimientos (${material.HISTORY.length})</h4>`;
-                    
+
                             material.HISTORY.forEach((point, index) => {
-                                const isCurrentPoint = index === material.HISTORY.length - 1;
-                                const nextPoint = material.HISTORY[index + 1]; // Para el look-ahead
-                    
-                                let arrival = point.arrival || 'N/A';
-                                let departure = 'En Curso';
-                                let durationDisplay = '';
-                                let daysElapsed = 0;
-                    
-                                // 1. DETERMINAR FECHA DE SALIDA Y CÁLCULO DE DÍAS
+                            const isCurrentPoint = index === material.HISTORY.length - 1; // #3 es el último
+                            const nextPoint = material.HISTORY[index + 1]; // Para el look-ahead
+                
+                            let arrival = point.arrival || 'N/A';
+                            let departure = 'N/A'; // Inicializar como N/A para puntos históricos que fallan
+                            let durationDisplay = '';
+                            let daysElapsed = 0;
+                
+                            // 1. DETERMINAR FECHA DE SALIDA y CÁLCULO DE DÍAS
+                
+                            if (nextPoint && nextPoint.arrival) {
+                                // LÓGICA LOOK-AHEAD: El arribo del siguiente punto es la salida de este.
+                                departure = nextPoint.arrival;
+                                daysElapsed = calculateDaysDifference(point.arrival, departure);
                                 
-                                if (nextPoint && nextPoint.arrival) {
-                                    // LÓGICA LOOK-AHEAD: El arribo del siguiente punto es la salida de este.
-                                    departure = nextPoint.arrival;
-                                    daysElapsed = calculateDaysDifference(point.arrival, departure);
-                                    
-                                    // Formato de salida para puntos intermedios
-                                    const departureDateObj = getValidDate(departure);
-                                    departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
-                                    durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
-                    
-                                } else if (isCurrentPoint) {
-                                    // LÓGICA PUNTO ACTUAL: Usamos FECHA_ACTUALIZACION como la "Salida" (si quieres una fecha).
-                                    
-                                    // Si quieres que el último punto muestre la fecha actual en la SALIDA:
-                                    const today = new Date();
-                                    departure = getValidDate(today).toLocaleDateString('es-PE'); // Muestra la fecha de hoy
-                                    
-                                    // Calculamos días desde el ARRIVAL del punto actual hasta HOY.
-                                    if (point.arrival) {
-                                         daysElapsed = calculateDaysDifference(point.arrival, today);
-                                    } else {
-                                         // Fallback al FECHA_ACTUALIZACION si el 'arrival' es nulo
-                                         daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, today);
-                                    }
-                                    
-                                    durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
-                                    
+                                // Formato de salida para puntos intermedios
+                                const departureDateObj = getValidDate(departure);
+                                departure = departureDateObj ? departureDateObj.toLocaleDateString('es-PE') : departure;
+                                durationDisplay = `<span style="font-weight: bold; color: blue;"> (${daysElapsed} días)</span>`;
+                
+                            } else if (isCurrentPoint) {
+                                // LÓGICA PUNTO ACTUAL (#3):
+                                
+                                // Salida: Forzamos la fecha de hoy (31/10/2025, si estamos en ese día).
+                                const today = new Date();
+                                departure = getValidDate(today).toLocaleDateString('es-PE');
+                                
+                                // Cálculo: Desde el ARRIVAL del punto actual (ej: 24/10) hasta HOY.
+                                if (point.arrival) {
+                                     daysElapsed = calculateDaysDifference(point.arrival, today);
                                 } else {
-                                     // Caso de punto intermedio sin datos de salida (data inconsistente)
-                                     daysElapsed = 0;
-                                     durationDisplay = `<span style="font-weight: bold; color: #777;"> (0 días)</span>`;
+                                     // Fallback, solo por seguridad
+                                     daysElapsed = calculateDaysDifference(material.FECHA_ACTUALIZACION, today);
                                 }
-                    
-                                // 2. Formato de Arribo (Aplícalo después de calcular la duración)
-                                const arrivalDateObj = getValidDate(arrival);
-                                arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : arrival; 
-                    
-                                // 3. Lógica de Coordenadas (Manteniendo tu estructura)
-                                let coordsDisplay = '';
-                                if (point.lat && point.lng) {
-                                    const lat = parseFloat(point.lat).toFixed(4);
-                                    const lng = parseFloat(point.lng).toFixed(4);
-                                    
-                                    if (isCurrentPoint) {
-                                        coordsDisplay = ' (Posición Actual)'; 
-                                    } else {
-                                        coordsDisplay = `(${lat},${lng})`;
-                                    }
-                                }
-                    
-                                // 4. Construcción HTML
-                                htmlContent += `
-                                    <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
-                                        <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
-                                    </div>
-                                `;
-                            });
+                                
+                                departure = 'En Curso'; // Mostrar "En Curso" si es el último (es lo que me habías pedido antes)
+                                // Si quieres que muestre la fecha: departure = getValidDate(today).toLocaleDateString('es-PE');
+                                
+                                durationDisplay = `<span style="font-weight: bold; color: green;"> (${daysElapsed} días)</span>`;
+                            }
+                
+                            // 2. Formato de Arribo
+                            const arrivalDateObj = getValidDate(arrival);
+                            arrival = arrivalDateObj ? arrivalDateObj.toLocaleDateString('es-PE') : arrival; 
+                
+                            // 3. Lógica de Coordenadas (Usamos tu directriz: NO son necesarias en el historial)
+                            let coordsDisplay = '';
+                            if (isCurrentPoint) {
+                                coordsDisplay = ' (Posición Actual)'; 
+                            } else {
+                                // Si NO es el punto actual, ya NO mostramos coordenadas (se muestran en el mapa histórico)
+                                coordsDisplay = ''; 
+                            }
+                
+                            // 4. Construcción HTML
+                            htmlContent += `
+                                <div class="detail-row" style="margin-bottom: 5px; border-left: 3px solid ${isCurrentPoint ? '#ff0000' : '#ccc'}; padding-left: 5px;">
+                                    <strong>#${index + 1} ${coordsDisplay}</strong>${durationDisplay}: Arribo: ${arrival} / Salida: ${departure}
+                                </div>
+                            `;
+                                } // materia.History.forEach
+                           
+                            );
                         }
                     
                         // Finalmente, actualiza el contenido
