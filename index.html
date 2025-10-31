@@ -356,7 +356,8 @@ let historyMarkers = [];
 let polyline = null; 
 let initialLoad = true; 
 const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
-
+let isHistoryMapManualZoom = false;
+        
         // Carga la API de Google Maps de forma asíncrona
 
         function loadGoogleMapsScript() {
@@ -894,9 +895,10 @@ const REFRESH_INTERVAL_MS = 10000; // Refresco cada 10 segundos
                 });
             
                 // Ajusta el zoom del mapa histórico (Mantenido)
-                if (!bounds.isEmpty()) {
-                    historyMap.fitBounds(bounds);
+               if (!isHistoryMapManualZoom && !bounds.isEmpty()) {
+                historyMap.fitBounds(bounds);
                 }
+               
             }
                  
 
