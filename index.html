@@ -113,7 +113,7 @@
             /* Centrado Horizontal Forzado */
             left: 0; /* Aseguramos que la manipulación de posición sea pura */
             margin-left: 0 !important; /* Anula cualquier margen automático */
-            transform: translate(-50%, 0); /* CRÍTICO: Mueve la caja 50% de su ancho a la izquierda */
+            transform: translate(750%, 100%); /* CRÍTICO: Mueve la caja 50% de su ancho a la izquierda */
         
             /* Estilos Visuales */
             background-color: #333; 
@@ -513,17 +513,98 @@ function clearActiveMarker() {
   if (!initialLoad) $('status-message').innerText = 'Estado: Seguimiento inactivo. Seleccione un material.';
 }
 
-function startBlinking(marker, intervalMs = 3000) {
-  if (!marker) return;
-  if (blinkIntervalId) clearInterval(blinkIntervalId);
-  let visible = true;
-  // Use marker.setVisible to avoid messing with icon object references
-  blinkIntervalId = setInterval(() => {
-    marker.setVisible(visible);
-    visible = !visible;
-  }, intervalMs / 2);
+let pulseCircle = null;
+let pulseInterval = null;
+        
+function startBlinking(marker, interval) {
+    // 1. Limpiar cualquier pulso o parpadeo anterior
+    if (activeMarker) {
+        activeMarker.setAnimation(null);
+    }
+    if (pulseInterval) {
+        clearInterval(pulseInterval);
+    }
+    if (pulseCircle) {
+        pulseCircle.setMap(null);
+        pulseCircle = null;
+    }
+
+    // 2. Crear el objeto Circle
+    pulseCircle = new google.maps.Circle({
+        strokeColor: '#FF0000',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#FF0000',
+        fillOpacity: 0.05, // Muy transparente
+        map: map,
+        center: marker.getPosition(),
+        radius: 0 // Comienza con radio cero
+    });
+
+    // 3. Obtener el radio final (el doble del tamaño actual del marcador)
+    // El marcador rojo tiene un 'scale' de 9, que se traduce en un radio de ~9px en pantalla.
+    // Asumiremos un radio final en metros de 30 metros para un buen efecto visible en zoom 15.
+    const MAX_RADIUS = 30; // Radio máximo en metros
+    const ANIMATION_DURATION = 1500; // Duración de la animación en milisegundos (1.5s)
+    let startTime = null;
+
+    // 4. Función de animación del pulso
+    function animatePulse(timestamp) {
+        if (!startTime) startTime = timestamp;
+        
+        const elapsed = timestamp - startTime;
+        const progress = elapsed / ANIMATION_DURATION; // Progreso de 0 a 1
+
+        if (progress > 1) {
+            // Reiniciar la animación
+            startTime = timestamp; 
+            pulseCircle.setRadius(0); // Vuelve a radio cero
+            window.requestAnimationFrame(animatePulse);
+            return;
+        }
+
+        // Calcular el nuevo radio (crece linealmente hasta MAX_RADIUS)
+        const newRadius = MAX_RADIUS * progress;
+        pulseCircle.setRadius(newRadius);
+
+        // Calcular la opacidad (desaparece a medida que crece)
+        // La opacidad va de 0.8 a 0 (1.0 - progress)
+        const newOpacity = 0.8 * (1.0 - progress); 
+        pulseCircle.setOptions({ strokeOpacity: newOpacity });
+
+        window.requestAnimationFrame(animatePulse);
+    }
+
+    // 5. Iniciar el ciclo de animación continua
+    window.requestAnimationFrame(animatePulse);
+
+    // Mantenemos el marcador principal sin animación (solo el punto fijo)
 }
 
+
+function clearActiveMarker() {
+    // Asegurarse de limpiar el pulso al borrar el marcador activo
+    if (activeMarker) {
+        activeMarker.setMap(null);
+        activeMarker = null;
+    }
+    if (pulseCircle) {
+        pulseCircle.setMap(null);
+        pulseCircle = null;
+    }
+    if (pulseInterval) {
+        clearInterval(pulseInterval);
+        pulseInterval = null;
+    }
+    
+    // Limpiar el contador de días
+    $('day-counter-overlay').style.display = 'none';
+    google.maps.event.clearListeners(map, 'bounds_changed');
+    
+    // Limpiar la ruta histórica
+    clearHistoryTracking();
+}
+        
 function updateActiveMarker(searchId) {
     if (!searchId) {
         clearActiveMarker();
