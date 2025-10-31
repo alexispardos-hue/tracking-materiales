@@ -7,7 +7,7 @@
 
     <meta charset="UTF-8">
 
-    <title>Tracking Dinámico (G.A.B.I. System)</title>
+    <title>Tracking Dinámico (SEPCON System)</title>
 
     <style>
 
@@ -544,8 +544,8 @@ function startBlinking(marker, interval) {
     // 3. Obtener el radio final (el doble del tamaño actual del marcador)
     // El marcador rojo tiene un 'scale' de 9, que se traduce en un radio de ~9px en pantalla.
     // Asumiremos un radio final en metros de 30 metros para un buen efecto visible en zoom 15.
-    const MAX_RADIUS = 1000; // Radio máximo en metros
-    const ANIMATION_DURATION = 10000; // Duración de la animación en milisegundos (1.5s)
+    const MAX_RADIUS = 500; // Radio máximo en metros
+    const ANIMATION_DURATION = 5000; // Duración de la animación en milisegundos (1.5s)
     let startTime = null;
 
     // 4. Función de animación del pulso
